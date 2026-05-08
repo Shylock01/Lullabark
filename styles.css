@@ -635,8 +635,9 @@ body.dark-mode .session-inputs input {
     gap: 10px;
 }
 
-.network-actions button {
+.network-actions button, .session-active-view button {
     flex: 1;
+    width: 100%;
     padding: 16px;
     border-radius: 20px;
     border: none;
