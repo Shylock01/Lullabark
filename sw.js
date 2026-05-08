@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lullabark-v2';
+const CACHE_NAME = 'lullabark-v4';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -39,6 +39,8 @@ self.addEventListener('activate', event => {
           }
         })
       );
+    }).then(() => {
+      return self.clients.claim();
     })
   );
 });
