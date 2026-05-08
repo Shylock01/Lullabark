@@ -667,4 +667,38 @@ body.dark-mode .blue-btn {
     box-shadow: 0 6px 0 #284C6F;
 }
 
-
+/* Responsive adjustments for phones */
+@media (max-width: 400px) {
+    body {
+        padding: 10px;
+    }
+    .app-container {
+        padding: 20px 15px;
+        border-radius: 24px;
+    }
+    header h1 {
+        font-size: 22px;
+    }
+    .app-logo {
+        width: 32px;
+        height: 32px;
+    }
+    .logo-container {
+        gap: 8px;
+    }
+    .time-picker-wrapper input {
+        font-size: 24px;
+        padding: 8px 16px;
+    }
+    .action-section button {
+        font-size: 16px;
+        padding: 12px;
+    }
+    .icon-btn {
+        padding: 6px;
+    }
+    .icon-btn svg {
+        width: 20px;
+        height: 20px;
+    }
+}
