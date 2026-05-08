@@ -1,0 +1,21 @@
+{
+  "name": "Lullabark",
+  "short_name": "Lullabark",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#BDE3FB",
+  "theme_color": "#BDE3FB",
+  "description": "Puppy Sleeping Aid Application",
+  "icons": [
+    {
+      "src": "Graphics/Lullibark_Logo_Color.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "Graphics/Lullibark_Logo_Color.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

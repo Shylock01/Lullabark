@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<body>
+    <button id="b">Test</button>
+    <script>
+        const b = document.getElementById('b');
+        const a = new Audio("Sounds/03-White-Noise-10min.mp3");
+        let ctx;
+        b.onmousedown = () => {
+            if (!ctx) {
+                ctx = new AudioContext();
+                const s = ctx.createMediaElementSource(a);
+                s.connect(ctx.destination);
+            }
+            ctx.resume();
+            a.currentTime = 0;
+            a.play();
+            console.log("Playing");
+        }
+        b.onmouseup = () => {
+            a.pause();
+            console.log("Paused");
+        }
+    </script>
+</body>
+</html>
