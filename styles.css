@@ -1,11 +1,15 @@
 :root {
-    --bg-color: #BDE3FB; /* Very light sky blue */
+    --bg-color: #BDE3FB;
+    /* Very light sky blue */
     --card-bg: #FFFFFF;
-    --text-primary: #1D3F7B; /* Navy blue */
+    --text-primary: #1D3F7B;
+    /* Navy blue */
     --text-secondary: #005F9E;
-    --primary-color: #FFD600; /* Vibrant yellow */
+    --primary-color: #FFD600;
+    /* Vibrant yellow */
     --primary-hover: #FFC400;
-    --secondary-color: #79C3EC; /* Mid blue */
+    --secondary-color: #79C3EC;
+    /* Mid blue */
     --secondary-hover: #5DB5E4;
     --border-radius: 24px;
     --shadow: 0 10px 25px rgba(29, 63, 123, 0.1);
@@ -70,7 +74,7 @@ header p {
     border-radius: var(--border-radius);
     padding: 20px;
     margin-bottom: 20px;
-    box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.02);
     border: 2px solid #E3F1FB;
 }
 
@@ -143,16 +147,19 @@ h2 {
 .presets-container::-webkit-scrollbar {
     height: 6px;
 }
+
 .presets-container::-webkit-scrollbar-track {
     background: transparent;
 }
+
 .presets-container::-webkit-scrollbar-thumb {
-    background: rgba(0,0,0,0.1);
+    background: rgba(0, 0, 0, 0.1);
     border-radius: 3px;
 }
 
 .preset-btn {
-    background: #8FC991; /* Pastel earth-toned green */
+    background: #8FC991;
+    /* Pastel earth-toned green */
     color: white;
     border: none;
     border-radius: 12px;
@@ -175,7 +182,7 @@ h2 {
 }
 
 .preset-delete {
-    background: rgba(0,0,0,0.1);
+    background: rgba(0, 0, 0, 0.1);
     border: none;
     border-radius: 50%;
     width: 20px;
@@ -190,7 +197,7 @@ h2 {
 }
 
 .preset-delete:hover {
-    background: rgba(0,0,0,0.25);
+    background: rgba(0, 0, 0, 0.25);
 }
 
 .setting-group {
@@ -247,7 +254,8 @@ select {
     color: white;
 }
 
-.disabled-label, button:disabled {
+.disabled-label,
+button:disabled {
     opacity: 0.5;
     pointer-events: none;
     cursor: not-allowed !important;
@@ -255,7 +263,8 @@ select {
 
 .test-btn {
     padding: 8px 16px;
-    background: #D18460; /* Muted earthy orange */
+    background: #D18460;
+    /* Muted earthy orange */
     color: white;
     border-radius: 12px;
     font-size: 12px;
@@ -300,7 +309,7 @@ input[type=range]::-webkit-slider-thumb {
     background: var(--primary-color);
     cursor: pointer;
     margin-top: -6px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
 }
 
 input[type=range]::-webkit-slider-runnable-track {
@@ -390,17 +399,25 @@ input[type=range]::-webkit-slider-runnable-track {
     width: 150px;
     height: 150px;
     border-radius: 50%;
-    background: rgba(255,255,255,0.2);
+    background: rgba(255, 255, 255, 0.2);
     animation: pulse 2s infinite;
     z-index: 0;
 }
 
 @keyframes pulse {
-    0% { transform: translate(-50%, -50%) scale(0.5); opacity: 1; }
-    100% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; }
+    0% {
+        transform: translate(-50%, -50%) scale(0.5);
+        opacity: 1;
+    }
+
+    100% {
+        transform: translate(-50%, -50%) scale(1.5);
+        opacity: 0;
+    }
 }
 
-#status-text, #countdown-text {
+#status-text,
+#countdown-text {
     position: relative;
     z-index: 1;
     font-weight: 700;
@@ -435,11 +452,11 @@ body.dark-mode {
 body.dark-mode .card {
     border-color: #233554;
     background: #112240;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
 }
 
 body.dark-mode .app-container {
-    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
 }
 
 body.dark-mode .time-picker-wrapper input,
@@ -576,7 +593,7 @@ body.dark-mode .icon-btn:hover {
 
 body.dark-mode .modal-content {
     border-color: #233554;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
 }
 
 .close-btn {
@@ -635,7 +652,8 @@ body.dark-mode .session-inputs input {
     gap: 10px;
 }
 
-.network-actions button, .session-active-view button {
+.network-actions button,
+.session-active-view button {
     flex: 1;
     width: 100%;
     padding: 16px;
@@ -673,31 +691,39 @@ body.dark-mode .blue-btn {
     body {
         padding: 10px;
     }
+
     .app-container {
         padding: 20px 15px;
         border-radius: 24px;
     }
+
     header h1 {
         font-size: 22px;
     }
+
     .app-logo {
         width: 32px;
         height: 32px;
     }
+
     .logo-container {
         gap: 8px;
     }
+
     .time-picker-wrapper input {
         font-size: 24px;
         padding: 8px 16px;
     }
+
     .action-section button {
         font-size: 16px;
         padding: 12px;
     }
+
     .icon-btn {
         padding: 6px;
     }
+
     .icon-btn svg {
         width: 20px;
         height: 20px;
