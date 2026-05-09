@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lullabark-v8';
+const CACHE_NAME = 'lullabark-v9';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -47,9 +47,18 @@ self.addEventListener('activate', event => {
 
 self.addEventListener('fetch', event => {
   event.respondWith(
-    caches.match(event.request)
-      .then(response => {
-        return response || fetch(event.request);
+    fetch(event.request)
+      .then(networkResponse => {
+        // Cache the fresh response for future offline use
+        const responseClone = networkResponse.clone();
+        caches.open(CACHE_NAME).then(cache => {
+          cache.put(event.request, responseClone);
+        });
+        return networkResponse;
+      })
+      .catch(() => {
+        // Fallback to cache if network fails (offline)
+        return caches.match(event.request);
       })
   );
 });
