@@ -99,17 +99,19 @@
         <div class="modal-content">
             <button id="close-modal-btn" class="close-btn">&times;</button>
             <h2>Network Session</h2>
-            <p class="modal-subtitle">Sync across devices</p>
+            <p id="modal-subtitle" class="modal-subtitle">Sync across devices</p>
+            
+            <div id="host-code-display" class="host-code-display hidden"></div>
             
             <div class="network-status-container">
                 <p id="network-status-text">Status: <strong>Disconnected</strong></p>
             </div>
 
             <div class="session-inputs" id="session-setup-view">
-                <input type="text" id="session-tag" placeholder="Session Tag (e.g. bluey)" autocomplete="off">
+                <input type="text" id="session-tag" placeholder="Enter 4-character Code" autocomplete="off" maxlength="4">
                 <div class="network-actions">
-                    <button id="host-session-btn" class="primary-btn">Host</button>
                     <button id="join-session-btn" class="blue-btn">Join</button>
+                    <button id="host-session-btn" class="primary-btn">Host New Session</button>
                 </div>
             </div>
 
