@@ -95,15 +95,26 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    let hostBaseTag = '';
+    let hostTagAttempt = 0;
+
     hostSessionBtn.addEventListener('click', () => {
         const tag = sessionTagInput.value.trim().toLowerCase();
         if (!tag) return showToast("Please enter a session tag!");
-        const peerId = `lullabark-session-${tag}`;
+        hostBaseTag = tag;
+        hostTagAttempt = 0;
+        initHostPeer();
+    });
+
+    function initHostPeer() {
+        const suffix = hostTagAttempt === 0 ? '' : `-${hostTagAttempt}`;
+        const peerId = `lullabark-session-${hostBaseTag}${suffix}`;
         if (peer) peer.destroy();
         peer = new Peer(peerId);
         const thisPeer = peer;
         networkRole = 'host';
-        updateNetworkUI('Initializing Host...', 'Host');
+        
+        if (hostTagAttempt === 0) updateNetworkUI('Initializing Host...', 'Host');
         
         thisPeer.on('open', () => {
             if (thisPeer !== peer) return;
@@ -126,19 +137,32 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         thisPeer.on('error', (err) => { 
             if (thisPeer !== peer) return;
-            if (err.type === 'network') {
+            if (err.type === 'unavailable-id') {
+                hostTagAttempt++;
+                if (hostTagAttempt > 5) {
+                    showToast("Tag is busy. Try a different tag.");
+                    cleanupNetwork();
+                } else {
+                    console.log(`ID unavailable, retrying with suffix ${hostTagAttempt}...`);
+                    initHostPeer();
+                }
+            } else if (err.type === 'network') {
                 showToast("Network Error... reconnecting");
             } else {
                 showToast("Network Error: " + err.type); 
                 cleanupNetwork(); 
             }
         });
-    });
+    }
+
+    let clientBaseTag = '';
+    let clientTagAttempt = 0;
 
     joinSessionBtn.addEventListener('click', () => {
         const tag = sessionTagInput.value.trim().toLowerCase();
         if (!tag) return showToast("Please enter a session tag!");
-        currentHostId = `lullabark-session-${tag}`;
+        clientBaseTag = tag;
+        clientTagAttempt = 0;
         initClientPeer();
     });
 
@@ -147,7 +171,7 @@ document.addEventListener('DOMContentLoaded', () => {
         peer = new Peer();
         const thisPeer = peer;
         networkRole = 'client';
-        updateNetworkUI('Connecting...', 'Client');
+        if (clientTagAttempt === 0) updateNetworkUI('Connecting...', 'Client');
 
         thisPeer.on('open', () => {
             if (thisPeer !== peer) return;
@@ -161,8 +185,15 @@ document.addEventListener('DOMContentLoaded', () => {
         thisPeer.on('error', (err) => { 
             if (thisPeer !== peer) return;
             if (err.type === 'peer-unavailable') {
-                showToast("Host not found. Retrying in 5s...");
-                setTimeout(() => { if (currentHostId && thisPeer === peer) initClientPeer(); }, 5000);
+                clientTagAttempt++;
+                if (clientTagAttempt > 5) {
+                    showToast("Host not found. Retrying in 5s...");
+                    clientTagAttempt = 0;
+                    setTimeout(() => { if (thisPeer === peer && networkRole === 'client') initClientPeer(); }, 5000);
+                } else {
+                    console.log(`Host not found, trying suffix ${clientTagAttempt}...`);
+                    connectToHost();
+                }
             } else if (err.type === 'network') {
                 showToast("Network Error... reconnecting");
             } else {
@@ -173,7 +204,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function connectToHost() {
-        if (!currentHostId || networkRole !== 'client' || !peer) return;
+        if (networkRole !== 'client' || !peer) return;
+        const suffix = clientTagAttempt === 0 ? '' : `-${clientTagAttempt}`;
+        currentHostId = `lullabark-session-${clientBaseTag}${suffix}`;
+        
         const conn = peer.connect(currentHostId);
         peerConnections = [conn];
         
@@ -189,6 +223,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!currentHostId || !peerConnections.includes(conn)) return;
             showToast("Disconnected from host. Reconnecting..."); 
             updateNetworkUI('Reconnecting...', 'Client');
+            
+            clientTagAttempt = 0;
             setTimeout(connectToHost, 3000);
         });
         conn.on('error', err => console.error(err));
