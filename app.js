@@ -114,7 +114,6 @@ document.addEventListener('DOMContentLoaded', () => {
             conn.on('open', () => broadcastState());
             conn.on('close', () => { 
                 peerConnections = peerConnections.filter(c => c !== conn); 
-                showToast("A client disconnected");
             });
             conn.on('error', err => console.error(err));
         });
@@ -169,9 +168,10 @@ document.addEventListener('DOMContentLoaded', () => {
         conn.on('open', () => updateNetworkUI('Connected', 'Client'));
         conn.on('data', (data) => handleNetworkMessage(data, conn));
         conn.on('close', () => { 
+            if (!currentHostId) return;
             showToast("Disconnected from host. Reconnecting..."); 
             updateNetworkUI('Reconnecting...', 'Client');
-            if (currentHostId) setTimeout(connectToHost, 3000);
+            setTimeout(connectToHost, 3000);
         });
         conn.on('error', err => console.error(err));
     }
@@ -187,6 +187,8 @@ document.addEventListener('DOMContentLoaded', () => {
         peerConnections = [];
         networkRole = 'none';
         updateNetworkUI('Disconnected', 'none');
+        resetApp(true);
+        wakeTimeInput.value = '';
     }
 
     function broadcastState() {
