@@ -211,7 +211,23 @@ document.addEventListener('DOMContentLoaded', () => {
         const conn = peer.connect(currentHostId);
         peerConnections = [conn];
         
+        let connectionTimeout = setTimeout(() => {
+            if (!peerConnections.includes(conn) || networkRole !== 'client') return;
+            console.log(`Connection to ${currentHostId} timed out. Trying next suffix...`);
+            conn.close();
+            
+            clientTagAttempt++;
+            if (clientTagAttempt > 5) {
+                showToast("Host not found. Retrying in 5s...");
+                clientTagAttempt = 0;
+                setTimeout(() => { if (networkRole === 'client') initClientPeer(); }, 5000);
+            } else {
+                connectToHost();
+            }
+        }, 3500);
+        
         conn.on('open', () => {
+            clearTimeout(connectionTimeout);
             if (!peerConnections.includes(conn)) return;
             updateNetworkUI('Connected', 'Client');
         });
@@ -220,6 +236,7 @@ document.addEventListener('DOMContentLoaded', () => {
             handleNetworkMessage(data, conn);
         });
         conn.on('close', () => { 
+            clearTimeout(connectionTimeout);
             if (!currentHostId || !peerConnections.includes(conn)) return;
             showToast("Disconnected from host. Reconnecting..."); 
             updateNetworkUI('Reconnecting...', 'Client');
@@ -227,7 +244,10 @@ document.addEventListener('DOMContentLoaded', () => {
             clientTagAttempt = 0;
             setTimeout(connectToHost, 3000);
         });
-        conn.on('error', err => console.error(err));
+        conn.on('error', err => {
+            console.error('Connection error:', err);
+            clearTimeout(connectionTimeout);
+        });
     }
 
     leaveSessionBtn.addEventListener('click', () => {
