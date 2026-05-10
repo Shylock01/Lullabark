@@ -31,6 +31,47 @@ document.addEventListener('DOMContentLoaded', () => {
     let peer = null;
     let peerConnections = [];
     let networkRole = 'none';
+    let currentHostId = null;
+    let wakeLock = null;
+
+    function showToast(message) {
+        let toast = document.getElementById('toast-notification');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'toast-notification';
+            document.body.appendChild(toast);
+        }
+        toast.innerText = message;
+        toast.className = 'toast show';
+        setTimeout(() => { toast.classList.remove('show'); }, 4000);
+    }
+
+    async function requestWakeLock() {
+        try {
+            if ('wakeLock' in navigator && !wakeLock) {
+                wakeLock = await navigator.wakeLock.request('screen');
+                console.log('Wake Lock active');
+                wakeLock.addEventListener('release', () => {
+                    console.log('Wake Lock released');
+                });
+            }
+        } catch (err) {
+            console.error('Wake Lock error:', err);
+        }
+    }
+
+    function releaseWakeLock() {
+        if (wakeLock !== null) {
+            wakeLock.release();
+            wakeLock = null;
+        }
+    }
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && isSleepMode) {
+            requestWakeLock();
+        }
+    });
 
     networkBtn.addEventListener('click', () => networkModal.classList.remove('hidden'));
     closeModalBtn.addEventListener('click', () => networkModal.classList.add('hidden'));
@@ -56,41 +97,92 @@ document.addEventListener('DOMContentLoaded', () => {
 
     hostSessionBtn.addEventListener('click', () => {
         const tag = sessionTagInput.value.trim().toLowerCase();
-        if (!tag) return alert("Please enter a session tag!");
+        if (!tag) return showToast("Please enter a session tag!");
         const peerId = `lullabark-session-${tag}`;
         peer = new Peer(peerId);
         networkRole = 'host';
         updateNetworkUI('Initializing Host...', 'Host');
+        
         peer.on('open', () => updateNetworkUI('Hosting', 'Host'));
+        peer.on('disconnected', () => {
+            console.log('Host disconnected from signaling server, reconnecting...');
+            peer.reconnect();
+        });
         peer.on('connection', (conn) => {
             peerConnections.push(conn);
             conn.on('data', (data) => handleNetworkMessage(data, conn));
             conn.on('open', () => broadcastState());
-            conn.on('close', () => { peerConnections = peerConnections.filter(c => c !== conn); });
+            conn.on('close', () => { 
+                peerConnections = peerConnections.filter(c => c !== conn); 
+                showToast("A client disconnected");
+            });
+            conn.on('error', err => console.error(err));
         });
-        peer.on('error', (err) => { alert("Network Error: " + err.type); cleanupNetwork(); });
+        peer.on('error', (err) => { 
+            if (err.type === 'network') {
+                showToast("Network Error... reconnecting");
+            } else {
+                showToast("Network Error: " + err.type); 
+                cleanupNetwork(); 
+            }
+        });
     });
 
     joinSessionBtn.addEventListener('click', () => {
         const tag = sessionTagInput.value.trim().toLowerCase();
-        if (!tag) return alert("Please enter a session tag!");
-        const hostId = `lullabark-session-${tag}`;
+        if (!tag) return showToast("Please enter a session tag!");
+        currentHostId = `lullabark-session-${tag}`;
+        initClientPeer();
+    });
+
+    function initClientPeer() {
+        if (peer) peer.destroy();
         peer = new Peer();
         networkRole = 'client';
         updateNetworkUI('Connecting...', 'Client');
+
         peer.on('open', () => {
-            const conn = peer.connect(hostId);
-            peerConnections = [conn];
-            conn.on('open', () => updateNetworkUI('Connected', 'Client'));
-            conn.on('data', (data) => handleNetworkMessage(data, conn));
-            conn.on('close', () => { alert("Disconnected from host"); cleanupNetwork(); });
+            connectToHost();
         });
-        peer.on('error', (err) => { alert("Network Error: " + err.type); cleanupNetwork(); });
+        peer.on('disconnected', () => {
+            console.log('Client disconnected from server, reconnecting...');
+            peer.reconnect();
+        });
+        peer.on('error', (err) => { 
+            if (err.type === 'peer-unavailable') {
+                showToast("Host not found. Retrying in 5s...");
+                setTimeout(() => { if (currentHostId) initClientPeer(); }, 5000);
+            } else if (err.type === 'network') {
+                showToast("Network Error... reconnecting");
+            } else {
+                showToast("Network Error: " + err.type); 
+                cleanupNetwork(); 
+            }
+        });
+    }
+
+    function connectToHost() {
+        if (!currentHostId || networkRole !== 'client') return;
+        const conn = peer.connect(currentHostId);
+        peerConnections = [conn];
+        
+        conn.on('open', () => updateNetworkUI('Connected', 'Client'));
+        conn.on('data', (data) => handleNetworkMessage(data, conn));
+        conn.on('close', () => { 
+            showToast("Disconnected from host. Reconnecting..."); 
+            updateNetworkUI('Reconnecting...', 'Client');
+            if (currentHostId) setTimeout(connectToHost, 3000);
+        });
+        conn.on('error', err => console.error(err));
+    }
+
+    leaveSessionBtn.addEventListener('click', () => {
+        currentHostId = null;
+        cleanupNetwork();
     });
 
-    leaveSessionBtn.addEventListener('click', () => cleanupNetwork());
-
     function cleanupNetwork() {
+        currentHostId = null;
         if (peer) { peer.destroy(); peer = null; }
         peerConnections = [];
         networkRole = 'none';
@@ -316,7 +408,7 @@ document.addEventListener('DOMContentLoaded', () => {
         savePresetBtn.addEventListener('click', () => {
             const timeStr = wakeTimeInput.value;
             if (!timeStr) {
-                alert("Please select a time first!");
+                showToast("Please select a time first!");
                 return;
             }
             if (!presets.includes(timeStr)) {
@@ -333,7 +425,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Start Button
     startBtn.addEventListener('click', () => {
         if (!wakeTimeInput.value) {
-            alert("Please set a wake up time!");
+            showToast("Please set a wake up time!");
             return;
         }
 
@@ -371,6 +463,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         isSleepMode = true;
+        requestWakeLock();
         
         // Update UI
         startBtn.classList.add('hidden');
@@ -402,7 +495,7 @@ document.addEventListener('DOMContentLoaded', () => {
             noiseAudios[0].currentTime = 0;
             noiseAudios[0].play().catch(e => {
                 console.error("Audio playback failed", e);
-                alert("Please interact with the page first to allow audio playback.");
+                showToast("Please interact with the page first to allow audio playback.");
             });
         }
 
@@ -547,6 +640,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         isSleepMode = false;
+        releaseWakeLock();
         clearInterval(timerInterval);
         
         // Stop audios
