@@ -99,16 +99,23 @@ document.addEventListener('DOMContentLoaded', () => {
         const tag = sessionTagInput.value.trim().toLowerCase();
         if (!tag) return showToast("Please enter a session tag!");
         const peerId = `lullabark-session-${tag}`;
+        if (peer) peer.destroy();
         peer = new Peer(peerId);
+        const thisPeer = peer;
         networkRole = 'host';
         updateNetworkUI('Initializing Host...', 'Host');
         
-        peer.on('open', () => updateNetworkUI('Hosting', 'Host'));
-        peer.on('disconnected', () => {
-            console.log('Host disconnected from signaling server, reconnecting...');
-            peer.reconnect();
+        thisPeer.on('open', () => {
+            if (thisPeer !== peer) return;
+            updateNetworkUI('Hosting', 'Host');
         });
-        peer.on('connection', (conn) => {
+        thisPeer.on('disconnected', () => {
+            if (thisPeer !== peer) return;
+            console.log('Host disconnected from signaling server, reconnecting...');
+            thisPeer.reconnect();
+        });
+        thisPeer.on('connection', (conn) => {
+            if (thisPeer !== peer) return;
             peerConnections.push(conn);
             conn.on('data', (data) => handleNetworkMessage(data, conn));
             conn.on('open', () => broadcastState());
@@ -117,7 +124,8 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             conn.on('error', err => console.error(err));
         });
-        peer.on('error', (err) => { 
+        thisPeer.on('error', (err) => { 
+            if (thisPeer !== peer) return;
             if (err.type === 'network') {
                 showToast("Network Error... reconnecting");
             } else {
@@ -137,20 +145,24 @@ document.addEventListener('DOMContentLoaded', () => {
     function initClientPeer() {
         if (peer) peer.destroy();
         peer = new Peer();
+        const thisPeer = peer;
         networkRole = 'client';
         updateNetworkUI('Connecting...', 'Client');
 
-        peer.on('open', () => {
+        thisPeer.on('open', () => {
+            if (thisPeer !== peer) return;
             connectToHost();
         });
-        peer.on('disconnected', () => {
+        thisPeer.on('disconnected', () => {
+            if (thisPeer !== peer) return;
             console.log('Client disconnected from server, reconnecting...');
-            peer.reconnect();
+            thisPeer.reconnect();
         });
-        peer.on('error', (err) => { 
+        thisPeer.on('error', (err) => { 
+            if (thisPeer !== peer) return;
             if (err.type === 'peer-unavailable') {
                 showToast("Host not found. Retrying in 5s...");
-                setTimeout(() => { if (currentHostId) initClientPeer(); }, 5000);
+                setTimeout(() => { if (currentHostId && thisPeer === peer) initClientPeer(); }, 5000);
             } else if (err.type === 'network') {
                 showToast("Network Error... reconnecting");
             } else {
@@ -161,14 +173,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function connectToHost() {
-        if (!currentHostId || networkRole !== 'client') return;
+        if (!currentHostId || networkRole !== 'client' || !peer) return;
         const conn = peer.connect(currentHostId);
         peerConnections = [conn];
         
-        conn.on('open', () => updateNetworkUI('Connected', 'Client'));
-        conn.on('data', (data) => handleNetworkMessage(data, conn));
+        conn.on('open', () => {
+            if (!peerConnections.includes(conn)) return;
+            updateNetworkUI('Connected', 'Client');
+        });
+        conn.on('data', (data) => {
+            if (!peerConnections.includes(conn)) return;
+            handleNetworkMessage(data, conn);
+        });
         conn.on('close', () => { 
-            if (!currentHostId) return;
+            if (!currentHostId || !peerConnections.includes(conn)) return;
             showToast("Disconnected from host. Reconnecting..."); 
             updateNetworkUI('Reconnecting...', 'Client');
             setTimeout(connectToHost, 3000);
@@ -183,8 +201,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function cleanupNetwork() {
         currentHostId = null;
-        if (peer) { peer.destroy(); peer = null; }
+        if (peerConnections.length > 0) {
+            peerConnections.forEach(conn => conn.close());
+        }
         peerConnections = [];
+        if (peer) { 
+            peer.destroy(); 
+            peer = null; 
+        }
         networkRole = 'none';
         updateNetworkUI('Disconnected', 'none');
         resetApp(true);
