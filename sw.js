@@ -1,11 +1,13 @@
-const CACHE_NAME = 'lullabark-v10';
+const CACHE_NAME = 'lullabark-v11';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './styles.css',
   './app.js',
   './manifest.json',
-  './Graphics/Lullibark_Logo_Color.png',
+  './favicon.png',
+  './apple-touch-icon.png',
+  './Graphics/Lullibark_Logo_Color_Transparent.png',
   './Sounds/03-White-Noise-10min.mp3',
   './Sounds/clock_sound_soft.mp3'
 ];
