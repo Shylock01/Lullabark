@@ -363,6 +363,23 @@ document.addEventListener('DOMContentLoaded', () => {
     ];
     alarmAudios.forEach(a => a.loop = false);
 
+    // Communication with Panopticon parent shell
+    function updateParentAudioState() {
+        const isPlaying = noiseAudios.some(a => !a.paused && !a.ended && a.currentTime > 0) ||
+                          alarmAudios.some(a => !a.paused && !a.ended && a.currentTime > 0);
+        window.parent.postMessage({
+            type: 'PANOPTICON_AUDIO_PLAYING',
+            payload: { isPlaying }
+        }, '*');
+    }
+
+    // Attach listeners to all audio elements to automatically sync playing state
+    [...noiseAudios, ...alarmAudios].forEach(audio => {
+        audio.addEventListener('play', updateParentAudioState);
+        audio.addEventListener('pause', updateParentAudioState);
+        audio.addEventListener('ended', updateParentAudioState);
+    });
+
     // State
     let isSleepMode = false;
     let timerInterval = null;
