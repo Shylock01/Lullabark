@@ -112,7 +112,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const opt = selectElement.options[i];
             if (opt.getAttribute('data-id') === savedId || opt.value === savedId) {
                 selectElement.selectedIndex = i;
-                selectElement.dispatchEvent(new Event('change', { bubbles: true }));
                 return;
             }
         }
@@ -219,12 +218,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (payload.noiseVolume !== undefined) {
                     noiseVolumeInput.value = payload.noiseVolume;
                     localStorage.setItem('noiseVolume', payload.noiseVolume);
-                    noiseVolumeInput.dispatchEvent(new Event('input', { bubbles: true }));
                 }
                 if (payload.alarmVolume !== undefined) {
                     alarmVolumeInput.value = payload.alarmVolume;
                     localStorage.setItem('alarmVolume', payload.alarmVolume);
-                    alarmVolumeInput.dispatchEvent(new Event('input', { bubbles: true }));
                 }
                 if (payload.selectedNoiseId !== undefined) {
                     localStorage.setItem('selectedNoiseId', payload.selectedNoiseId);
