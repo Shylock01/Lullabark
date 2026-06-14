@@ -44,12 +44,11 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentHostId = null;
     let wakeLock = null;
     let isRestoringState = false;
-    
     // New Network State Variables
-    let discoveryPeer = null;
-    let discoveryChannelNum = 0;
     let selectedSessionToJoin = null;
     let clientConnectionPassword = '';
+    let currentHostCode = '';
+    let clientBaseTag = '';
 
     // IndexedDB Setup for Custom Sounds
     const DB_NAME = 'LullabarkDB';
@@ -342,8 +341,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (role === 'none') {
             sessionSetupView.classList.remove('hidden');
             sessionActiveView.classList.add('hidden');
-            modalSubtitle.textContent = 'Sync across devices';
-            modalSubtitle.style.display = 'block';
+            modalSubtitle.textContent = '';
+            modalSubtitle.style.display = 'none';
             hostCodeDisplay.classList.add('hidden');
             hostCodeDisplay.innerHTML = '';
         } else if (role === 'Host') {
@@ -371,9 +370,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    let currentHostCode = '';
-    let clientBaseTag = '';
-
     hostSessionBtn.addEventListener('click', () => {
         const sessionName = (sessionNameInput.value.trim()) || 'Lullabark Session';
         const isPasswordProtected = sessionPasswordProtected.checked;
@@ -385,112 +381,88 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function initHostPeer(sessionName, isPasswordProtected) {
-        const peerId = `lullabark-session-${currentHostCode}`;
         if (peer) peer.destroy();
-        peer = new Peer(peerId);
-        const thisPeer = peer;
         networkRole = 'host';
-        
         updateNetworkUI('Initializing Host...', 'Host');
         
-        thisPeer.on('open', () => {
-            if (thisPeer !== peer) return;
+        let channelNum = 0;
+        tryBindHostPeer(sessionName, isPasswordProtected, channelNum);
+    }
+
+    function tryBindHostPeer(sessionName, isPasswordProtected, channelNum) {
+        if (channelNum >= 20) {
+            showToast("All channels are full. Cannot host session.");
+            cleanupNetwork();
+            return;
+        }
+        
+        if (networkRole !== 'host') return; // User cancelled
+        
+        const hostPeerId = `lullabark-discovery-${channelNum}`;
+        const tempPeer = new Peer(hostPeerId);
+        peer = tempPeer;
+        
+        tempPeer.on('open', () => {
+            if (peer !== tempPeer) return;
+            console.log(`Hosted session on channel ID: ${hostPeerId}`);
             updateNetworkUI('Hosting', 'Host', currentHostCode);
             
-            // Start discovery channel binding
-            startDiscoveryHosting(sessionName, isPasswordProtected);
-        });
-        thisPeer.on('disconnected', () => {
-            if (thisPeer !== peer) return;
-            console.log('Host disconnected from signaling server, reconnecting...');
-            thisPeer.reconnect();
-        });
-        thisPeer.on('connection', (conn) => {
-            if (thisPeer !== peer) return;
-            
-            // Check password if required
-            if (isPasswordProtected) {
-                const clientPassword = conn.metadata ? conn.metadata.password : null;
-                if (clientPassword !== currentHostCode) {
-                    console.log("Client authentication failed: incorrect password.");
+            tempPeer.on('connection', (conn) => {
+                if (peer !== tempPeer) return;
+                
+                const purpose = conn.metadata ? conn.metadata.purpose : 'join';
+                if (purpose === 'discovery') {
                     conn.on('open', () => {
-                        conn.send({ type: 'AUTH_FAIL', message: 'Incorrect passcode' });
+                        conn.send({
+                            type: 'DISCOVERY_INFO',
+                            id: hostPeerId,
+                            name: sessionName,
+                            passwordProtected: isPasswordProtected
+                        });
                         setTimeout(() => conn.close(), 500);
                     });
                     return;
                 }
-            }
-            
-            peerConnections.push(conn);
-            conn.on('data', (data) => handleNetworkMessage(data, conn));
-            conn.on('open', () => broadcastState());
-            conn.on('close', () => { 
-                peerConnections = peerConnections.filter(c => c !== conn); 
+                
+                // Joining connection
+                if (isPasswordProtected) {
+                    const clientPassword = conn.metadata ? conn.metadata.password : null;
+                    if (clientPassword !== currentHostCode) {
+                        console.log("Client authentication failed: incorrect password.");
+                        conn.on('open', () => {
+                            conn.send({ type: 'AUTH_FAIL', message: 'Incorrect passcode' });
+                            setTimeout(() => conn.close(), 500);
+                        });
+                        return;
+                    }
+                }
+                
+                peerConnections.push(conn);
+                conn.on('data', (data) => handleNetworkMessage(data, conn));
+                conn.on('open', () => broadcastState());
+                conn.on('close', () => { 
+                    peerConnections = peerConnections.filter(c => c !== conn); 
+                });
+                conn.on('error', err => console.error(err));
             });
-            conn.on('error', err => console.error(err));
         });
-        thisPeer.on('error', (err) => { 
-            if (thisPeer !== peer) return;
+        
+        tempPeer.on('disconnected', () => {
+            if (peer !== tempPeer) return;
+            console.log('Host disconnected from signaling server, reconnecting...');
+            tempPeer.reconnect();
+        });
+        
+        tempPeer.on('error', (err) => {
+            if (peer !== tempPeer) return;
             if (err.type === 'unavailable-id') {
-                showToast("Generating new code...");
-                currentHostCode = Math.random().toString(36).substring(2, 6).toUpperCase();
-                initHostPeer(sessionName, isPasswordProtected);
+                console.log(`Channel ${hostPeerId} occupied. Trying next...`);
+                tryBindHostPeer(sessionName, isPasswordProtected, channelNum + 1);
             } else if (err.type === 'network') {
                 showToast("Network Error... reconnecting");
             } else {
                 showToast("Network Error: " + err.type); 
                 cleanupNetwork(); 
-            }
-        });
-    }
-
-    // Discovery Hosting logic (Host side)
-    function startDiscoveryHosting(sessionName, isPasswordProtected) {
-        if (discoveryPeer) {
-            try { discoveryPeer.destroy(); } catch(e){}
-            discoveryPeer = null;
-        }
-        
-        discoveryChannelNum = 0;
-        tryBindDiscoveryPeer(sessionName, isPasswordProtected);
-    }
-
-    function tryBindDiscoveryPeer(sessionName, isPasswordProtected) {
-        if (discoveryChannelNum >= 20) {
-            console.warn("All discovery channels (0-19) are occupied. Discovery will not be available for this session.");
-            return;
-        }
-        
-        const discId = `lullabark-discovery-${discoveryChannelNum}`;
-        const tempDiscPeer = new Peer(discId);
-        discoveryPeer = tempDiscPeer;
-        
-        tempDiscPeer.on('open', () => {
-            if (discoveryPeer !== tempDiscPeer) return;
-            console.log(`Bound to discovery channel: ${discId}`);
-            
-            tempDiscPeer.on('connection', (conn) => {
-                conn.on('open', () => {
-                    conn.send({
-                        type: 'DISCOVERY_INFO',
-                        id: `lullabark-session-${currentHostCode}`,
-                        name: sessionName,
-                        passwordProtected: isPasswordProtected
-                    });
-                    // Close the connection after sending discovery info
-                    setTimeout(() => conn.close(), 500);
-                });
-            });
-        });
-        
-        tempDiscPeer.on('error', (err) => {
-            if (discoveryPeer !== tempDiscPeer) return;
-            if (err.type === 'unavailable-id') {
-                console.log(`Discovery channel ${discId} occupied. Trying next...`);
-                discoveryChannelNum++;
-                tryBindDiscoveryPeer(sessionName, isPasswordProtected);
-            } else {
-                console.error("Discovery peer error:", err);
             }
         });
     }
@@ -520,7 +492,9 @@ document.addEventListener('DOMContentLoaded', () => {
             
             for (let i = 0; i < 20; i++) {
                 const targetId = `lullabark-discovery-${i}`;
-                const conn = scanPeer.connect(targetId);
+                const conn = scanPeer.connect(targetId, {
+                    metadata: { purpose: 'discovery' }
+                });
                 activeConnections++;
                 
                 let connTimeout = setTimeout(() => {
@@ -667,7 +641,7 @@ document.addEventListener('DOMContentLoaded', () => {
         thisPeer.on('error', (err) => { 
             if (thisPeer !== peer) return;
             if (err.type === 'peer-unavailable') {
-                showToast("Host code not found. Retrying in 5s...");
+                showToast("Host not found. Retrying in 5s...");
                 setTimeout(() => { if (thisPeer === peer && networkRole === 'client') initClientPeer(); }, 5000);
             } else if (err.type === 'network') {
                 showToast("Network Error... reconnecting");
@@ -680,10 +654,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function connectToHost() {
         if (networkRole !== 'client' || !peer) return;
-        currentHostId = `lullabark-session-${clientBaseTag}`;
+        currentHostId = clientBaseTag;
         
         const conn = peer.connect(currentHostId, {
-            metadata: { password: clientConnectionPassword }
+            metadata: { purpose: 'join', password: clientConnectionPassword }
         });
         peerConnections = [conn];
         
@@ -698,7 +672,7 @@ document.addEventListener('DOMContentLoaded', () => {
         conn.on('open', () => {
             clearTimeout(connectionTimeout);
             if (!peerConnections.includes(conn)) return;
-            updateNetworkUI(`Joined (${clientBaseTag})`, 'Client');
+            updateNetworkUI('Joined', 'Client');
         });
         conn.on('data', (data) => {
             if (!peerConnections.includes(conn)) return;
