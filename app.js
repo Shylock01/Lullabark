@@ -84,41 +84,87 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    async function deleteSound(id) {
+        try {
+            const db = await openDB();
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction(STORE_NAME, 'readwrite');
+                const store = transaction.objectStore(STORE_NAME);
+                const request = store.delete(id);
+                request.onsuccess = () => resolve();
+                request.onerror = (e) => reject(e.target.error);
+            });
+        } catch (err) {
+            console.error('Failed to delete sound from IndexedDB:', err);
+        }
+    }
+
     // Load volume settings from localStorage or default to 50%
     const savedNoiseVol = localStorage.getItem('noiseVolume');
     const savedAlarmVol = localStorage.getItem('alarmVolume');
     noiseVolumeInput.value = savedNoiseVol !== null ? parseFloat(savedNoiseVol) : 0.5;
     alarmVolumeInput.value = savedAlarmVol !== null ? parseFloat(savedAlarmVol) : 0.5;
 
+    // Helper to select an option in a dropdown safely
+    function restoreSelectedOption(selectElement, savedId) {
+        for (let i = 0; i < selectElement.options.length; i++) {
+            const opt = selectElement.options[i];
+            if (opt.getAttribute('data-id') === savedId || opt.value === savedId) {
+                selectElement.selectedIndex = i;
+                selectElement.dispatchEvent(new Event('change', { bubbles: true }));
+                return;
+            }
+        }
+    }
+
+    // Load custom sounds from database
     async function loadCustomSounds() {
-        const sounds = await getAllSounds();
+        let sounds = [];
+        try {
+            sounds = await getAllSounds();
+        } catch (e) {
+            console.error("Failed to load sounds from IndexedDB:", e);
+            return;
+        }
+
         const savedNoiseId = localStorage.getItem('selectedNoiseId');
         const savedAlarmId = localStorage.getItem('selectedAlarmId');
         
         let noiseSelected = false;
         let alarmSelected = false;
 
-        sounds.forEach(sound => {
-            const objectURL = URL.createObjectURL(sound.blob);
-            const option = document.createElement('option');
-            option.value = objectURL;
-            option.text = `Custom: ${sound.name}`;
-            option.setAttribute('data-id', sound.id);
-
-            if (sound.type === 'noise') {
-                whiteNoiseSelect.appendChild(option);
-                if (sound.id === savedNoiseId) {
-                    whiteNoiseSelect.value = objectURL;
-                    noiseSelected = true;
+        for (const sound of sounds) {
+            try {
+                if (!sound || !sound.blob) {
+                    throw new Error("Invalid sound record or empty blob");
                 }
-            } else if (sound.type === 'alarm') {
-                alarmSelect.appendChild(option);
-                if (sound.id === savedAlarmId) {
-                    alarmSelect.value = objectURL;
-                    alarmSelected = true;
+                const objectURL = URL.createObjectURL(sound.blob);
+                const option = document.createElement('option');
+                option.value = objectURL;
+                option.text = `Custom: ${sound.name}`;
+                option.setAttribute('data-id', sound.id);
+
+                if (sound.type === 'noise') {
+                    whiteNoiseSelect.appendChild(option);
+                    if (sound.id === savedNoiseId) {
+                        whiteNoiseSelect.value = objectURL;
+                        noiseSelected = true;
+                    }
+                } else if (sound.type === 'alarm') {
+                    alarmSelect.appendChild(option);
+                    if (sound.id === savedAlarmId) {
+                        alarmSelect.value = objectURL;
+                        alarmSelected = true;
+                    }
+                }
+            } catch (err) {
+                console.error(`Error processing custom sound "${sound ? sound.name : 'unknown'}":`, err);
+                // Self-heal: Delete corrupt sound so it won't crash on future reloads
+                if (sound && sound.id) {
+                    deleteSound(sound.id).catch(e => console.error("IndexedDB delete sound failed", e));
                 }
             }
-        });
+        }
 
         // Fallback or select defaults if no custom sound matches
         if (!noiseSelected && savedNoiseId) {
@@ -139,7 +185,67 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    loadCustomSounds().catch(err => console.error("Error loading custom sounds on startup:", err));
+    // Synchronization function to broadcast state changes to Panopticon parent
+    function syncStateToPanopticon() {
+        if (window.parent === window) return;
+
+        const selectedNoiseOption = whiteNoiseSelect.options[whiteNoiseSelect.selectedIndex];
+        const noiseId = selectedNoiseOption ? (selectedNoiseOption.getAttribute('data-id') || whiteNoiseSelect.value) : whiteNoiseSelect.value;
+        
+        const selectedAlarmOption = alarmSelect.options[alarmSelect.selectedIndex];
+        const alarmId = selectedAlarmOption ? (selectedAlarmOption.getAttribute('data-id') || alarmSelect.value) : alarmSelect.value;
+
+        const state = {
+            noiseVolume: noiseVolumeInput.value,
+            alarmVolume: alarmVolumeInput.value,
+            selectedNoiseId: noiseId,
+            selectedAlarmId: alarmId
+        };
+        
+        window.parent.postMessage({
+            type: 'PANOPTICON_SYNC',
+            payload: state
+        }, '*');
+    }
+
+    // Handle Panopticon state loaded event
+    window.addEventListener('message', (event) => {
+        const { type, payload } = event.data || {};
+        if (type === 'PANOPTICON_LOAD' && payload) {
+            if (payload.noiseVolume !== undefined) {
+                noiseVolumeInput.value = payload.noiseVolume;
+                localStorage.setItem('noiseVolume', payload.noiseVolume);
+                noiseVolumeInput.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+            if (payload.alarmVolume !== undefined) {
+                alarmVolumeInput.value = payload.alarmVolume;
+                localStorage.setItem('alarmVolume', payload.alarmVolume);
+                alarmVolumeInput.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+            if (payload.selectedNoiseId !== undefined) {
+                localStorage.setItem('selectedNoiseId', payload.selectedNoiseId);
+                restoreSelectedOption(whiteNoiseSelect, payload.selectedNoiseId);
+            }
+            if (payload.selectedAlarmId !== undefined) {
+                localStorage.setItem('selectedAlarmId', payload.selectedAlarmId);
+                restoreSelectedOption(alarmSelect, payload.selectedAlarmId);
+            }
+        }
+    });
+
+    // Initialize application and announce availability to Panopticon
+    async function initializeApp() {
+        try {
+            await loadCustomSounds();
+        } catch (err) {
+            console.error("Failed to load custom sounds:", err);
+        }
+        
+        if (window.parent !== window) {
+            window.parent.postMessage({ type: 'PANOPTICON_READY' }, '*');
+        }
+    }
+    initializeApp();
 
     function showToast(message) {
         let toast = document.getElementById('toast-notification');
@@ -512,6 +618,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 // Save selection in localStorage
                 localStorage.setItem(`selected${type === 'noise' ? 'Noise' : 'Alarm'}Id`, id);
+                syncStateToPanopticon();
                 
                 // Save to IndexedDB
                 try {
@@ -531,12 +638,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const selectedOption = whiteNoiseSelect.options[whiteNoiseSelect.selectedIndex];
         const customId = selectedOption.getAttribute('data-id');
         localStorage.setItem('selectedNoiseId', customId || whiteNoiseSelect.value);
+        syncStateToPanopticon();
     });
 
     alarmSelect.addEventListener('change', () => {
         const selectedOption = alarmSelect.options[alarmSelect.selectedIndex];
         const customId = selectedOption.getAttribute('data-id');
         localStorage.setItem('selectedAlarmId', customId || alarmSelect.value);
+        syncStateToPanopticon();
     });
 
     function setupTestButton(btn, selectElement, audioElOrArray, volumeInput) {
@@ -912,6 +1021,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Live volume update
     noiseVolumeInput.addEventListener('input', (e) => {
         localStorage.setItem('noiseVolume', e.target.value);
+        syncStateToPanopticon();
         if (networkRole === 'client') sendCommand('UPDATE_NOISE_VOL', e.target.value);
         else if (networkRole === 'host') broadcastState();
 
@@ -926,6 +1036,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     alarmVolumeInput.addEventListener('input', (e) => {
         localStorage.setItem('alarmVolume', e.target.value);
+        syncStateToPanopticon();
         if (networkRole === 'client') sendCommand('UPDATE_ALARM_VOL', e.target.value);
         else if (networkRole === 'host') broadcastState();
 
