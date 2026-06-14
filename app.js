@@ -349,15 +349,22 @@ document.addEventListener('DOMContentLoaded', () => {
             hostCodeDisplay.classList.add('hidden');
             hostCodeDisplay.innerHTML = '';
         } else if (role === 'Host') {
+            const sessionName = (sessionNameInput.value.trim()) || 'Lullabark Session';
             networkStatusText.innerHTML = `Status: <strong>Hosting</strong>`;
             sessionSetupView.classList.add('hidden');
             sessionActiveView.classList.remove('hidden');
-            modalSubtitle.textContent = 'Session Code';
+            modalSubtitle.textContent = `Session "${sessionName}" is Live`;
             modalSubtitle.style.display = 'block';
-            hostCodeDisplay.classList.remove('hidden');
             
-            if (code && hostCodeDisplay.innerHTML === '') {
-                hostCodeDisplay.innerHTML = code.split('').map(char => `<div class="code-box">${char}</div>`).join('');
+            const isPasswordProtected = sessionPasswordProtected.checked;
+            if (isPasswordProtected) {
+                hostCodeDisplay.classList.remove('hidden');
+                if (code && hostCodeDisplay.innerHTML === '') {
+                    hostCodeDisplay.innerHTML = code.split('').map(char => `<div class="code-box">${char}</div>`).join('');
+                }
+            } else {
+                hostCodeDisplay.classList.add('hidden');
+                hostCodeDisplay.innerHTML = '';
             }
         } else if (role === 'Client') {
             networkStatusText.innerHTML = `Status: <strong>${status}</strong>`;
