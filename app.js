@@ -774,33 +774,62 @@ document.addEventListener('DOMContentLoaded', () => {
             networkModal.classList.add('hidden');
         }
 
+        // Reset state variables immediately
+        networkRole = 'none';
+        currentHostId = null;
+
+        // Reset UI immediately
         try {
-            currentHostId = null;
+            updateNetworkUI('Disconnected', 'none');
+        } catch (err) {
+            console.error("Error updating network UI:", err);
+        }
+
+        // Reset App State immediately
+        try {
+            resetApp(true);
+        } catch (err) {
+            console.error("Error resetting app:", err);
+        }
+
+        if (networkRetryTimeout) {
+            clearTimeout(networkRetryTimeout);
+            networkRetryTimeout = null;
+        }
+
+        // Cleanup connections safely
+        try {
             if (peerConnections.length > 0) {
                 peerConnections.forEach(conn => {
                     try { conn.close(); } catch(e){}
                 });
             }
-            peerConnections = [];
-            if (peer) { 
-                try { peer.destroy(); } catch(e){}
-                peer = null; 
-            }
-            if (discoveryPeer) {
-                try { discoveryPeer.destroy(); } catch(e){}
-                discoveryPeer = null;
-            }
-            if (networkRetryTimeout) {
-                clearTimeout(networkRetryTimeout);
-                networkRetryTimeout = null;
-            }
-            networkRole = 'none';
-            updateNetworkUI('Disconnected', 'none');
-            resetApp(true);
-            wakeTimeInput.value = '';
         } catch (err) {
-            console.error("Error during cleanupNetwork:", err);
+            console.error("Error closing connections:", err);
         }
+        peerConnections = [];
+
+        // Destroy peer safely
+        try {
+            if (peer) {
+                peer.destroy();
+            }
+        } catch (err) {
+            console.error("Error destroying peer:", err);
+        }
+        peer = null;
+
+        // Destroy discovery peer safely
+        try {
+            if (discoveryPeer) {
+                discoveryPeer.destroy();
+            }
+        } catch (err) {
+            console.error("Error destroying discovery peer:", err);
+        }
+        discoveryPeer = null;
+
+        wakeTimeInput.value = '';
     }
 
     function broadcastState() {
