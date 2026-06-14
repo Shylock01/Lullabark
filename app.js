@@ -22,7 +22,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeModalBtn = document.getElementById('close-modal-btn');
     const hostSessionBtn = document.getElementById('host-session-btn');
     const leaveSessionBtn = document.getElementById('leave-session-btn');
-    const networkStatusText = document.getElementById('network-status-text');
     const sessionSetupView = document.getElementById('session-setup-view');
     const sessionActiveView = document.getElementById('session-active-view');
 
@@ -341,7 +340,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (role === 'none') {
-            networkStatusText.innerHTML = `Status: <strong>Disconnected</strong>`;
             sessionSetupView.classList.remove('hidden');
             sessionActiveView.classList.add('hidden');
             modalSubtitle.textContent = 'Sync across devices';
@@ -350,7 +348,6 @@ document.addEventListener('DOMContentLoaded', () => {
             hostCodeDisplay.innerHTML = '';
         } else if (role === 'Host') {
             const sessionName = (sessionNameInput.value.trim()) || 'Lullabark Session';
-            networkStatusText.innerHTML = `Status: <strong>Hosting</strong>`;
             sessionSetupView.classList.add('hidden');
             sessionActiveView.classList.remove('hidden');
             modalSubtitle.textContent = `Session "${sessionName}" is Live`;
@@ -367,7 +364,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 hostCodeDisplay.innerHTML = '';
             }
         } else if (role === 'Client') {
-            networkStatusText.innerHTML = `Status: <strong>${status}</strong>`;
             sessionSetupView.classList.add('hidden');
             sessionActiveView.classList.remove('hidden');
             modalSubtitle.style.display = 'none';
