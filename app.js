@@ -770,31 +770,36 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function cleanupNetwork() {
-        currentHostId = null;
-        if (peerConnections.length > 0) {
-            peerConnections.forEach(conn => {
-                try { conn.close(); } catch(e){}
-            });
-        }
-        peerConnections = [];
-        if (peer) { 
-            try { peer.destroy(); } catch(e){}
-            peer = null; 
-        }
-        if (discoveryPeer) {
-            try { discoveryPeer.destroy(); } catch(e){}
-            discoveryPeer = null;
-        }
-        if (networkRetryTimeout) {
-            clearTimeout(networkRetryTimeout);
-            networkRetryTimeout = null;
-        }
-        networkRole = 'none';
-        updateNetworkUI('Disconnected', 'none');
-        resetApp(true);
-        wakeTimeInput.value = '';
         if (networkModal) {
             networkModal.classList.add('hidden');
+        }
+
+        try {
+            currentHostId = null;
+            if (peerConnections.length > 0) {
+                peerConnections.forEach(conn => {
+                    try { conn.close(); } catch(e){}
+                });
+            }
+            peerConnections = [];
+            if (peer) { 
+                try { peer.destroy(); } catch(e){}
+                peer = null; 
+            }
+            if (discoveryPeer) {
+                try { discoveryPeer.destroy(); } catch(e){}
+                discoveryPeer = null;
+            }
+            if (networkRetryTimeout) {
+                clearTimeout(networkRetryTimeout);
+                networkRetryTimeout = null;
+            }
+            networkRole = 'none';
+            updateNetworkUI('Disconnected', 'none');
+            resetApp(true);
+            wakeTimeInput.value = '';
+        } catch (err) {
+            console.error("Error during cleanupNetwork:", err);
         }
     }
 
