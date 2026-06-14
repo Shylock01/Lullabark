@@ -415,7 +415,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 const purpose = conn.metadata ? conn.metadata.purpose : 'join';
                 if (purpose === 'discovery') {
-                    conn.on('open', () => {
+                    const sendDiscoveryInfo = () => {
                         conn.send({
                             type: 'DISCOVERY_INFO',
                             id: hostPeerId,
@@ -423,7 +423,12 @@ document.addEventListener('DOMContentLoaded', () => {
                             passwordProtected: isPasswordProtected
                         });
                         setTimeout(() => conn.close(), 500);
-                    });
+                    };
+                    if (conn.open) {
+                        sendDiscoveryInfo();
+                    } else {
+                        conn.on('open', sendDiscoveryInfo);
+                    }
                     return;
                 }
                 
@@ -432,17 +437,26 @@ document.addEventListener('DOMContentLoaded', () => {
                     const clientPassword = conn.metadata ? conn.metadata.password : null;
                     if (clientPassword !== currentHostCode) {
                         console.log("Client authentication failed: incorrect password.");
-                        conn.on('open', () => {
+                        const sendAuthFail = () => {
                             conn.send({ type: 'AUTH_FAIL', message: 'Incorrect passcode' });
                             setTimeout(() => conn.close(), 500);
-                        });
+                        };
+                        if (conn.open) {
+                            sendAuthFail();
+                        } else {
+                            conn.on('open', sendAuthFail);
+                        }
                         return;
                     }
                 }
                 
                 peerConnections.push(conn);
                 conn.on('data', (data) => handleNetworkMessage(data, conn));
-                conn.on('open', () => broadcastState());
+                if (conn.open) {
+                    broadcastState();
+                } else {
+                    conn.on('open', () => broadcastState());
+                }
                 conn.on('close', () => { 
                     peerConnections = peerConnections.filter(c => c !== conn); 
                 });
@@ -674,11 +688,16 @@ document.addEventListener('DOMContentLoaded', () => {
             networkRetryTimeout = setTimeout(() => { if (networkRole === 'client') initClientPeer(); }, 5000);
         }, 5000);
         
-        conn.on('open', () => {
+        const handleOpen = () => {
             clearTimeout(connectionTimeout);
             if (!peerConnections.includes(conn)) return;
             updateNetworkUI('Joined', 'Client');
-        });
+        };
+        if (conn.open) {
+            handleOpen();
+        } else {
+            conn.on('open', handleOpen);
+        }
         conn.on('data', (data) => {
             if (!peerConnections.includes(conn)) return;
             handleNetworkMessage(data, conn);
@@ -748,11 +767,13 @@ document.addEventListener('DOMContentLoaded', () => {
     function cleanupNetwork() {
         currentHostId = null;
         if (peerConnections.length > 0) {
-            peerConnections.forEach(conn => conn.close());
+            peerConnections.forEach(conn => {
+                try { conn.close(); } catch(e){}
+            });
         }
         peerConnections = [];
         if (peer) { 
-            peer.destroy(); 
+            try { peer.destroy(); } catch(e){}
             peer = null; 
         }
         if (discoveryPeer) {
