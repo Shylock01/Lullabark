@@ -34,6 +34,113 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentHostId = null;
     let wakeLock = null;
 
+    // IndexedDB Setup for Custom Sounds
+    const DB_NAME = 'LullabarkDB';
+    const DB_VERSION = 1;
+    const STORE_NAME = 'sounds';
+
+    function openDB() {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open(DB_NAME, DB_VERSION);
+            request.onupgradeneeded = (e) => {
+                const db = e.target.result;
+                if (!db.objectStoreNames.contains(STORE_NAME)) {
+                    db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+                }
+            };
+            request.onsuccess = (e) => resolve(e.target.result);
+            request.onerror = (e) => reject(e.target.error);
+        });
+    }
+
+    async function saveSound(id, name, type, blob) {
+        try {
+            const db = await openDB();
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction(STORE_NAME, 'readwrite');
+                const store = transaction.objectStore(STORE_NAME);
+                const request = store.put({ id, name, type, blob });
+                request.onsuccess = () => resolve();
+                request.onerror = (e) => reject(e.target.error);
+            });
+        } catch (err) {
+            console.error('Failed to save sound to IndexedDB:', err);
+        }
+    }
+
+    async function getAllSounds() {
+        try {
+            const db = await openDB();
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction(STORE_NAME, 'readonly');
+                const store = transaction.objectStore(STORE_NAME);
+                const request = store.getAll();
+                request.onsuccess = (e) => resolve(e.target.result);
+                request.onerror = (e) => reject(e.target.error);
+            });
+        } catch (err) {
+            console.error('Failed to get sounds from IndexedDB:', err);
+            return [];
+        }
+    }
+
+    // Load volume settings from localStorage or default to 50%
+    const savedNoiseVol = localStorage.getItem('noiseVolume');
+    const savedAlarmVol = localStorage.getItem('alarmVolume');
+    noiseVolumeInput.value = savedNoiseVol !== null ? parseFloat(savedNoiseVol) : 0.5;
+    alarmVolumeInput.value = savedAlarmVol !== null ? parseFloat(savedAlarmVol) : 0.5;
+
+    async function loadCustomSounds() {
+        const sounds = await getAllSounds();
+        const savedNoiseId = localStorage.getItem('selectedNoiseId');
+        const savedAlarmId = localStorage.getItem('selectedAlarmId');
+        
+        let noiseSelected = false;
+        let alarmSelected = false;
+
+        sounds.forEach(sound => {
+            const objectURL = URL.createObjectURL(sound.blob);
+            const option = document.createElement('option');
+            option.value = objectURL;
+            option.text = `Custom: ${sound.name}`;
+            option.setAttribute('data-id', sound.id);
+
+            if (sound.type === 'noise') {
+                whiteNoiseSelect.appendChild(option);
+                if (sound.id === savedNoiseId) {
+                    whiteNoiseSelect.value = objectURL;
+                    noiseSelected = true;
+                }
+            } else if (sound.type === 'alarm') {
+                alarmSelect.appendChild(option);
+                if (sound.id === savedAlarmId) {
+                    alarmSelect.value = objectURL;
+                    alarmSelected = true;
+                }
+            }
+        });
+
+        // Fallback or select defaults if no custom sound matches
+        if (!noiseSelected && savedNoiseId) {
+            for (let i = 0; i < whiteNoiseSelect.options.length; i++) {
+                if (whiteNoiseSelect.options[i].value === savedNoiseId) {
+                    whiteNoiseSelect.selectedIndex = i;
+                    break;
+                }
+            }
+        }
+        if (!alarmSelected && savedAlarmId) {
+            for (let i = 0; i < alarmSelect.options.length; i++) {
+                if (alarmSelect.options[i].value === savedAlarmId) {
+                    alarmSelect.selectedIndex = i;
+                    break;
+                }
+            }
+        }
+    }
+
+    loadCustomSounds().catch(err => console.error("Error loading custom sounds on startup:", err));
+
     function showToast(message) {
         let toast = document.getElementById('toast-notification');
         if (!toast) {
@@ -388,22 +495,49 @@ document.addEventListener('DOMContentLoaded', () => {
     const MAX_ALARM_PLAYS = 1;
 
     // Handle File Uploads
-    function handleFileUpload(input, selectElement, labelPrefix) {
-        input.addEventListener('change', (e) => {
+    function handleFileUpload(input, selectElement, labelPrefix, type) {
+        input.addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (file) {
+                const id = `custom_${type}_${Date.now()}`;
                 const objectURL = URL.createObjectURL(file);
+                
                 const option = document.createElement('option');
                 option.value = objectURL;
                 option.text = `${labelPrefix}: ${file.name}`;
+                option.setAttribute('data-id', id);
+                
                 selectElement.appendChild(option);
                 selectElement.value = objectURL; // Auto-select the newly uploaded file
+                
+                // Save selection in localStorage
+                localStorage.setItem(`selected${type === 'noise' ? 'Noise' : 'Alarm'}Id`, id);
+                
+                // Save to IndexedDB
+                try {
+                    await saveSound(id, file.name, type, file);
+                } catch (err) {
+                    console.error("Failed to save uploaded file to IndexedDB:", err);
+                }
             }
         });
     }
 
-    handleFileUpload(uploadNoise, whiteNoiseSelect, "Custom");
-    handleFileUpload(uploadAlarm, alarmSelect, "Custom");
+    handleFileUpload(uploadNoise, whiteNoiseSelect, "Custom", "noise");
+    handleFileUpload(uploadAlarm, alarmSelect, "Custom", "alarm");
+
+    // Track sound selection changes manually
+    whiteNoiseSelect.addEventListener('change', () => {
+        const selectedOption = whiteNoiseSelect.options[whiteNoiseSelect.selectedIndex];
+        const customId = selectedOption.getAttribute('data-id');
+        localStorage.setItem('selectedNoiseId', customId || whiteNoiseSelect.value);
+    });
+
+    alarmSelect.addEventListener('change', () => {
+        const selectedOption = alarmSelect.options[alarmSelect.selectedIndex];
+        const customId = selectedOption.getAttribute('data-id');
+        localStorage.setItem('selectedAlarmId', customId || alarmSelect.value);
+    });
 
     function setupTestButton(btn, selectElement, audioElOrArray, volumeInput) {
         const isArray = Array.isArray(audioElOrArray);
@@ -777,6 +911,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Live volume update
     noiseVolumeInput.addEventListener('input', (e) => {
+        localStorage.setItem('noiseVolume', e.target.value);
         if (networkRole === 'client') sendCommand('UPDATE_NOISE_VOL', e.target.value);
         else if (networkRole === 'host') broadcastState();
 
@@ -790,6 +925,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     alarmVolumeInput.addEventListener('input', (e) => {
+        localStorage.setItem('alarmVolume', e.target.value);
         if (networkRole === 'client') sendCommand('UPDATE_ALARM_VOL', e.target.value);
         else if (networkRole === 'host') broadcastState();
 
