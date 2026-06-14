@@ -325,7 +325,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    networkBtn.addEventListener('click', () => networkModal.classList.remove('hidden'));
+    networkBtn.addEventListener('click', () => {
+        networkModal.classList.remove('hidden');
+        if (networkRole === 'none') {
+            scanForSessions();
+        }
+    });
     closeModalBtn.addEventListener('click', () => networkModal.classList.add('hidden'));
 
     function updateNetworkUI(status, role, code = '') {
@@ -788,6 +793,9 @@ document.addEventListener('DOMContentLoaded', () => {
         updateNetworkUI('Disconnected', 'none');
         resetApp(true);
         wakeTimeInput.value = '';
+        if (networkModal) {
+            networkModal.classList.add('hidden');
+        }
     }
 
     function broadcastState() {
