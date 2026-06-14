@@ -95,7 +95,7 @@
         </main>
     </div>
 
-    <div class="app-version">version 1.3.0</div>
+    <div class="app-version">version 1.3.1</div>
 
     <!-- Network Modal -->
     <div id="network-modal" class="modal-overlay hidden">
@@ -120,7 +120,7 @@
                     </div>
                     <div class="checkbox-row">
                         <input type="checkbox" id="session-password-protected">
-                        <label for="session-password-protected">Require Password (4-Digit Code)</label>
+                        <label for="session-password-protected">Generate Password</label>
                     </div>
                     <button id="host-session-btn" class="primary-btn">Host New Session</button>
                 </div>
@@ -130,17 +130,8 @@
                 <!-- Client Join / Search Section -->
                 <div class="client-search-card">
                     <h3>Available Sessions</h3>
-                    <div id="discovery-status" class="discovery-status">Searching for sessions...</div>
                     <div id="session-list" class="session-list"></div>
                     <button id="refresh-discovery-btn" class="blue-btn">Scan for Sessions</button>
-
-                    <div class="manual-join-toggle">
-                        <button id="toggle-manual-join-btn" class="text-link-btn">Or join manually with a code</button>
-                    </div>
-                    <div id="manual-join-container" class="manual-join-container hidden">
-                        <input type="text" id="session-tag" placeholder="Enter 4-character Code" autocomplete="off" maxlength="4">
-                        <button id="join-session-btn" class="blue-btn">Join with Code</button>
-                    </div>
                 </div>
             </div>
 

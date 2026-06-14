@@ -354,6 +354,22 @@ input[type=range]::-webkit-slider-runnable-track {
     width: 100%;
 }
 
+.primary-btn, .secondary-btn, .blue-btn {
+    padding: 14px 20px;
+    border-radius: 20px;
+    border: none;
+    font-size: 16px;
+    font-weight: 900;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.3s ease;
+    box-sizing: border-box;
+    display: inline-block;
+    text-align: center;
+    width: 100%;
+    outline: none;
+}
+
 .primary-btn {
     background: var(--primary-color);
     color: var(--text-primary);
@@ -845,6 +861,16 @@ body.dark-mode .client-search-card h3 {
     outline: none;
 }
 
+.input-with-action .save-preset-btn {
+    padding: 10px 16px;
+    border: 2px solid transparent;
+    box-sizing: border-box;
+    height: auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
 body.dark-mode .input-with-action input {
     background: #0A192F;
     border-color: #233554;
@@ -865,8 +891,10 @@ body.dark-mode .input-with-action input {
 .checkbox-row input[type="checkbox"] {
     width: 18px;
     height: 18px;
+    margin: 0;
     accent-color: var(--secondary-color);
     cursor: pointer;
+    flex-shrink: 0;
 }
 
 .small-divider {

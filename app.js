@@ -20,9 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const networkBtn = document.getElementById('network-btn');
     const networkModal = document.getElementById('network-modal');
     const closeModalBtn = document.getElementById('close-modal-btn');
-    const sessionTagInput = document.getElementById('session-tag');
     const hostSessionBtn = document.getElementById('host-session-btn');
-    const joinSessionBtn = document.getElementById('join-session-btn');
     const leaveSessionBtn = document.getElementById('leave-session-btn');
     const networkStatusText = document.getElementById('network-status-text');
     const sessionSetupView = document.getElementById('session-setup-view');
@@ -32,11 +30,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const sessionNameInput = document.getElementById('session-name');
     const saveDefaultNameBtn = document.getElementById('save-default-name-btn');
     const sessionPasswordProtected = document.getElementById('session-password-protected');
-    const discoveryStatus = document.getElementById('discovery-status');
     const sessionList = document.getElementById('session-list');
     const refreshDiscoveryBtn = document.getElementById('refresh-discovery-btn');
-    const toggleManualJoinBtn = document.getElementById('toggle-manual-join-btn');
-    const manualJoinContainer = document.getElementById('manual-join-container');
 
     // Passcode Prompt Modal elements
     const passcodePromptModal = document.getElementById('passcode-prompt-modal');
@@ -398,7 +393,6 @@ document.addEventListener('DOMContentLoaded', () => {
         thisPeer.on('open', () => {
             if (thisPeer !== peer) return;
             updateNetworkUI('Hosting', 'Host', currentHostCode);
-            sessionTagInput.value = '';
             
             // Start discovery channel binding
             startDiscoveryHosting(sessionName, isPasswordProtected);
@@ -505,8 +499,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isScanning) return;
         isScanning = true;
         
-        discoveryStatus.textContent = "Scanning for sessions...";
-        discoveryStatus.classList.remove('hidden');
         sessionList.innerHTML = '';
         
         const scanPeer = new Peer();
@@ -582,13 +574,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 return; // Normal when checking unregistered channel IDs
             }
             console.error("Scan peer error:", err);
-            discoveryStatus.textContent = "Error scanning for sessions.";
             closeScanPeer();
         });
     }
 
     function renderDiscoveredSessions(discovered) {
-        discoveryStatus.classList.add('hidden');
         sessionList.innerHTML = '';
         
         if (discovered.length === 0) {
@@ -653,11 +643,7 @@ document.addEventListener('DOMContentLoaded', () => {
         initClientPeer();
     }
 
-    joinSessionBtn.addEventListener('click', () => {
-        const tag = sessionTagInput.value.trim().toUpperCase();
-        if (!tag) return showToast("Please enter a session code!");
-        joinSessionWithCode(tag, tag);
-    });
+
 
     function initClientPeer() {
         if (peer) peer.destroy();
@@ -710,7 +696,6 @@ document.addEventListener('DOMContentLoaded', () => {
             clearTimeout(connectionTimeout);
             if (!peerConnections.includes(conn)) return;
             updateNetworkUI(`Joined (${clientBaseTag})`, 'Client');
-            sessionTagInput.value = '';
         });
         conn.on('data', (data) => {
             if (!peerConnections.includes(conn)) return;
@@ -738,17 +723,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    if (toggleManualJoinBtn && manualJoinContainer) {
-        toggleManualJoinBtn.addEventListener('click', () => {
-            if (manualJoinContainer.classList.contains('hidden')) {
-                manualJoinContainer.classList.remove('hidden');
-                toggleManualJoinBtn.textContent = "Hide manual join";
-            } else {
-                manualJoinContainer.classList.add('hidden');
-                toggleManualJoinBtn.textContent = "Or join manually with a code";
-            }
-        });
-    }
+
 
     if (closePasscodeBtn && passcodePromptModal) {
         closePasscodeBtn.addEventListener('click', () => {
@@ -780,13 +755,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    if (sessionTagInput) {
-        sessionTagInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                joinSessionBtn.click();
-            }
-        });
-    }
+
 
     leaveSessionBtn.addEventListener('click', () => {
         currentHostId = null;
