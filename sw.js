@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lullabark-v25';
+const CACHE_NAME = 'lullabark-v26';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
