@@ -794,3 +794,223 @@ body.dark-mode .blue-btn {
     opacity: 1;
     transform: translateX(-50%) translateY(0);
 }
+
+/* Host Configuration & Client Discovery Styles (Bluey-themed) */
+.host-config-card,
+.client-search-card {
+    background: #F4FAFF;
+    border: 2px solid #E3F1FB;
+    border-radius: 20px;
+    padding: 16px;
+    margin-bottom: 15px;
+    text-align: left;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.01);
+}
+
+body.dark-mode .host-config-card,
+body.dark-mode .client-search-card {
+    background: #112240;
+    border-color: #233554;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.host-config-card h3,
+.client-search-card h3 {
+    font-size: 16px;
+    font-weight: 800;
+    margin-bottom: 12px;
+    color: var(--text-primary);
+    border-bottom: 2px solid #E3F1FB;
+    padding-bottom: 4px;
+}
+
+body.dark-mode .host-config-card h3,
+body.dark-mode .client-search-card h3 {
+    border-color: #233554;
+}
+
+.input-with-action {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.input-with-action input {
+    flex: 1;
+    padding: 10px 14px;
+    border-radius: 12px;
+    border: 2px solid #E3F1FB;
+    font-size: 14px;
+    font-weight: 700;
+    outline: none;
+}
+
+body.dark-mode .input-with-action input {
+    background: #0A192F;
+    border-color: #233554;
+    color: var(--text-primary);
+}
+
+.checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 16px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.checkbox-row input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--secondary-color);
+    cursor: pointer;
+}
+
+.small-divider {
+    margin: 12px 0 !important;
+}
+
+.discovery-status {
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+    text-align: center;
+    font-style: italic;
+}
+
+.session-list {
+    max-height: 150px;
+    overflow-y: auto;
+    margin-bottom: 12px;
+    border-radius: 12px;
+    border: 1px solid #E3F1FB;
+    background: white;
+}
+
+body.dark-mode .session-list {
+    background: #0A192F;
+    border-color: #233554;
+}
+
+.session-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-bottom: 1px solid #E3F1FB;
+    font-weight: 700;
+    font-size: 14px;
+}
+
+body.dark-mode .session-item {
+    border-color: #233554;
+}
+
+.session-item:last-child {
+    border-bottom: none;
+}
+
+.session-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-primary);
+}
+
+.lock-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #D18460;
+}
+
+.session-item .join-btn {
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 900;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    background: var(--primary-color);
+    color: var(--text-primary);
+    box-shadow: 0 3px 0 var(--primary-hover);
+    transition: all 0.2s ease;
+}
+
+.session-item .join-btn:hover {
+    transform: translateY(1px);
+    box-shadow: 0 2px 0 var(--primary-hover);
+}
+
+.session-item .join-btn:active {
+    transform: translateY(3px);
+    box-shadow: 0 0 0 var(--primary-hover);
+}
+
+.no-sessions {
+    padding: 16px;
+    text-align: center;
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-weight: 700;
+}
+
+.manual-join-toggle {
+    text-align: center;
+    margin: 12px 0 4px;
+}
+
+.text-link-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-weight: 800;
+    font-size: 13px;
+    text-decoration: underline;
+    cursor: pointer;
+    transition: color 0.2s ease;
+}
+
+.text-link-btn:hover {
+    color: var(--text-primary);
+}
+
+.manual-join-container {
+    margin-top: 10px;
+    border-top: 1px dashed #E3F1FB;
+    padding-top: 12px;
+}
+
+body.dark-mode .manual-join-container {
+    border-color: #233554;
+}
+
+/* Passcode Modal Customization */
+.passcode-modal-content {
+    max-width: 300px !important;
+}
+
+.passcode-modal-content input {
+    width: 100%;
+    padding: 12px;
+    border-radius: 12px;
+    border: 2px solid #E3F1FB;
+    background: white;
+    font-size: 18px;
+    color: var(--text-primary);
+    margin-bottom: 16px;
+    text-align: center;
+    outline: none;
+    font-weight: 900;
+    letter-spacing: 4px;
+}
+
+body.dark-mode .passcode-modal-content input {
+    background: #0A192F;
+    border-color: #233554;
+    color: var(--text-primary);
+}

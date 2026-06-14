@@ -95,7 +95,7 @@
         </main>
     </div>
 
-    <div class="app-version">version 1.2.3</div>
+    <div class="app-version">version 1.3.0</div>
 
     <!-- Network Modal -->
     <div id="network-modal" class="modal-overlay hidden">
@@ -111,16 +111,53 @@
             </div>
 
             <div class="session-inputs" id="session-setup-view">
-                <input type="text" id="session-tag" placeholder="Enter 4-character Code" autocomplete="off" maxlength="4">
-                <div class="network-actions">
-                    <button id="join-session-btn" class="blue-btn">Join</button>
+                <!-- Host Settings Section -->
+                <div class="host-config-card">
+                    <h3>Host Settings</h3>
+                    <div class="input-with-action">
+                        <input type="text" id="session-name" placeholder="Session Name (e.g. Living Room)" autocomplete="off">
+                        <button id="save-default-name-btn" class="save-preset-btn" title="Save name as default">Save</button>
+                    </div>
+                    <div class="checkbox-row">
+                        <input type="checkbox" id="session-password-protected">
+                        <label for="session-password-protected">Require Password (4-Digit Code)</label>
+                    </div>
                     <button id="host-session-btn" class="primary-btn">Host New Session</button>
+                </div>
+
+                <div class="divider small-divider"></div>
+
+                <!-- Client Join / Search Section -->
+                <div class="client-search-card">
+                    <h3>Available Sessions</h3>
+                    <div id="discovery-status" class="discovery-status">Searching for sessions...</div>
+                    <div id="session-list" class="session-list"></div>
+                    <button id="refresh-discovery-btn" class="blue-btn">Scan for Sessions</button>
+
+                    <div class="manual-join-toggle">
+                        <button id="toggle-manual-join-btn" class="text-link-btn">Or join manually with a code</button>
+                    </div>
+                    <div id="manual-join-container" class="manual-join-container hidden">
+                        <input type="text" id="session-tag" placeholder="Enter 4-character Code" autocomplete="off" maxlength="4">
+                        <button id="join-session-btn" class="blue-btn">Join with Code</button>
+                    </div>
                 </div>
             </div>
 
             <div class="session-active-view hidden" id="session-active-view">
                 <button id="leave-session-btn" class="secondary-btn">Disconnect</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Passcode Modal Prompt -->
+    <div id="passcode-prompt-modal" class="modal-overlay hidden">
+        <div class="modal-content passcode-modal-content">
+            <button id="close-passcode-btn" class="close-btn">&times;</button>
+            <h2>Enter Password</h2>
+            <p class="modal-subtitle">This session requires a password to join</p>
+            <input type="text" id="passcode-input" placeholder="4-character Code" autocomplete="off" maxlength="4">
+            <button id="submit-passcode-btn" class="primary-btn">Join Session</button>
         </div>
     </div>
 

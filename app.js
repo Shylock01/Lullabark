@@ -28,12 +28,34 @@ document.addEventListener('DOMContentLoaded', () => {
     const sessionSetupView = document.getElementById('session-setup-view');
     const sessionActiveView = document.getElementById('session-active-view');
 
+    // New Network discovery and setting controls
+    const sessionNameInput = document.getElementById('session-name');
+    const saveDefaultNameBtn = document.getElementById('save-default-name-btn');
+    const sessionPasswordProtected = document.getElementById('session-password-protected');
+    const discoveryStatus = document.getElementById('discovery-status');
+    const sessionList = document.getElementById('session-list');
+    const refreshDiscoveryBtn = document.getElementById('refresh-discovery-btn');
+    const toggleManualJoinBtn = document.getElementById('toggle-manual-join-btn');
+    const manualJoinContainer = document.getElementById('manual-join-container');
+
+    // Passcode Prompt Modal elements
+    const passcodePromptModal = document.getElementById('passcode-prompt-modal');
+    const closePasscodeBtn = document.getElementById('close-passcode-btn');
+    const passcodeInput = document.getElementById('passcode-input');
+    const submitPasscodeBtn = document.getElementById('submit-passcode-btn');
+
     let peer = null;
     let peerConnections = [];
     let networkRole = 'none';
     let currentHostId = null;
     let wakeLock = null;
     let isRestoringState = false;
+    
+    // New Network State Variables
+    let discoveryPeer = null;
+    let discoveryChannelNum = 0;
+    let selectedSessionToJoin = null;
+    let clientConnectionPassword = '';
 
     // IndexedDB Setup for Custom Sounds
     const DB_NAME = 'LullabarkDB';
@@ -245,11 +267,30 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error("Failed to load custom sounds:", err);
         }
         
+        // Load default session name from localStorage
+        const savedDefaultName = localStorage.getItem('defaultSessionName');
+        if (sessionNameInput) {
+            sessionNameInput.value = savedDefaultName !== null ? savedDefaultName : '';
+        }
+        
         if (window.parent !== window) {
             window.parent.postMessage({ type: 'PANOPTICON_READY' }, '*');
         }
     }
     initializeApp();
+
+    if (saveDefaultNameBtn && sessionNameInput) {
+        saveDefaultNameBtn.addEventListener('click', () => {
+            const name = sessionNameInput.value.trim();
+            if (name) {
+                localStorage.setItem('defaultSessionName', name);
+                showToast("Default session name saved!");
+            } else {
+                localStorage.removeItem('defaultSessionName');
+                showToast("Default session name cleared!");
+            }
+        });
+    }
 
     function showToast(message) {
         let toast = document.getElementById('toast-notification');
@@ -333,14 +374,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     let currentHostCode = '';
+    let clientBaseTag = '';
 
     hostSessionBtn.addEventListener('click', () => {
+        const sessionName = (sessionNameInput.value.trim()) || 'Lullabark Session';
+        const isPasswordProtected = sessionPasswordProtected.checked;
+        
         const code = Math.random().toString(36).substring(2, 6).toUpperCase();
         currentHostCode = code;
-        initHostPeer();
+        
+        initHostPeer(sessionName, isPasswordProtected);
     });
 
-    function initHostPeer() {
+    function initHostPeer(sessionName, isPasswordProtected) {
         const peerId = `lullabark-session-${currentHostCode}`;
         if (peer) peer.destroy();
         peer = new Peer(peerId);
@@ -353,6 +399,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (thisPeer !== peer) return;
             updateNetworkUI('Hosting', 'Host', currentHostCode);
             sessionTagInput.value = '';
+            
+            // Start discovery channel binding
+            startDiscoveryHosting(sessionName, isPasswordProtected);
         });
         thisPeer.on('disconnected', () => {
             if (thisPeer !== peer) return;
@@ -361,6 +410,20 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         thisPeer.on('connection', (conn) => {
             if (thisPeer !== peer) return;
+            
+            // Check password if required
+            if (isPasswordProtected) {
+                const clientPassword = conn.metadata ? conn.metadata.password : null;
+                if (clientPassword !== currentHostCode) {
+                    console.log("Client authentication failed: incorrect password.");
+                    conn.on('open', () => {
+                        conn.send({ type: 'AUTH_FAIL', message: 'Incorrect passcode' });
+                        setTimeout(() => conn.close(), 500);
+                    });
+                    return;
+                }
+            }
+            
             peerConnections.push(conn);
             conn.on('data', (data) => handleNetworkMessage(data, conn));
             conn.on('open', () => broadcastState());
@@ -374,7 +437,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (err.type === 'unavailable-id') {
                 showToast("Generating new code...");
                 currentHostCode = Math.random().toString(36).substring(2, 6).toUpperCase();
-                initHostPeer();
+                initHostPeer(sessionName, isPasswordProtected);
             } else if (err.type === 'network') {
                 showToast("Network Error... reconnecting");
             } else {
@@ -384,13 +447,216 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    let clientBaseTag = '';
+    // Discovery Hosting logic (Host side)
+    function startDiscoveryHosting(sessionName, isPasswordProtected) {
+        if (discoveryPeer) {
+            try { discoveryPeer.destroy(); } catch(e){}
+            discoveryPeer = null;
+        }
+        
+        discoveryChannelNum = 0;
+        tryBindDiscoveryPeer(sessionName, isPasswordProtected);
+    }
+
+    function tryBindDiscoveryPeer(sessionName, isPasswordProtected) {
+        if (discoveryChannelNum >= 20) {
+            console.warn("All discovery channels (0-19) are occupied. Discovery will not be available for this session.");
+            return;
+        }
+        
+        const discId = `lullabark-discovery-${discoveryChannelNum}`;
+        const tempDiscPeer = new Peer(discId);
+        discoveryPeer = tempDiscPeer;
+        
+        tempDiscPeer.on('open', () => {
+            if (discoveryPeer !== tempDiscPeer) return;
+            console.log(`Bound to discovery channel: ${discId}`);
+            
+            tempDiscPeer.on('connection', (conn) => {
+                conn.on('open', () => {
+                    conn.send({
+                        type: 'DISCOVERY_INFO',
+                        id: `lullabark-session-${currentHostCode}`,
+                        name: sessionName,
+                        passwordProtected: isPasswordProtected
+                    });
+                    // Close the connection after sending discovery info
+                    setTimeout(() => conn.close(), 500);
+                });
+            });
+        });
+        
+        tempDiscPeer.on('error', (err) => {
+            if (discoveryPeer !== tempDiscPeer) return;
+            if (err.type === 'unavailable-id') {
+                console.log(`Discovery channel ${discId} occupied. Trying next...`);
+                discoveryChannelNum++;
+                tryBindDiscoveryPeer(sessionName, isPasswordProtected);
+            } else {
+                console.error("Discovery peer error:", err);
+            }
+        });
+    }
+
+    // Client Side Discovery & Joining
+    let isScanning = false;
+    
+    function scanForSessions() {
+        if (isScanning) return;
+        isScanning = true;
+        
+        discoveryStatus.textContent = "Scanning for sessions...";
+        discoveryStatus.classList.remove('hidden');
+        sessionList.innerHTML = '';
+        
+        const scanPeer = new Peer();
+        const discovered = [];
+        const checkedChannels = new Set();
+        let scanTimeout = null;
+        
+        const closeScanPeer = () => {
+            if (scanTimeout) clearTimeout(scanTimeout);
+            try { scanPeer.destroy(); } catch(e){}
+            isScanning = false;
+        };
+        
+        scanPeer.on('open', () => {
+            let activeConnections = 0;
+            
+            for (let i = 0; i < 20; i++) {
+                const targetId = `lullabark-discovery-${i}`;
+                const conn = scanPeer.connect(targetId);
+                activeConnections++;
+                
+                let connTimeout = setTimeout(() => {
+                    if (checkedChannels.has(targetId)) return;
+                    checkedChannels.add(targetId);
+                    conn.close();
+                    activeConnections--;
+                    if (activeConnections === 0) {
+                        renderDiscoveredSessions(discovered);
+                        closeScanPeer();
+                    }
+                }, 1500); // 1.5 second timeout per channel
+                
+                conn.on('data', (data) => {
+                    if (data && data.type === 'DISCOVERY_INFO') {
+                        if (!discovered.some(s => s.id === data.id)) {
+                            discovered.push(data);
+                        }
+                    }
+                });
+                
+                conn.on('close', () => {
+                    if (checkedChannels.has(targetId)) return;
+                    checkedChannels.add(targetId);
+                    clearTimeout(connTimeout);
+                    activeConnections--;
+                    if (activeConnections === 0) {
+                        renderDiscoveredSessions(discovered);
+                        closeScanPeer();
+                    }
+                });
+                
+                conn.on('error', (err) => {
+                    if (checkedChannels.has(targetId)) return;
+                    checkedChannels.add(targetId);
+                    clearTimeout(connTimeout);
+                    activeConnections--;
+                    if (activeConnections === 0) {
+                        renderDiscoveredSessions(discovered);
+                        closeScanPeer();
+                    }
+                });
+            }
+            
+            // Backup timeout
+            scanTimeout = setTimeout(() => {
+                renderDiscoveredSessions(discovered);
+                closeScanPeer();
+            }, 2500);
+        });
+        
+        scanPeer.on('error', (err) => {
+            if (err.type === 'peer-unavailable') {
+                return; // Normal when checking unregistered channel IDs
+            }
+            console.error("Scan peer error:", err);
+            discoveryStatus.textContent = "Error scanning for sessions.";
+            closeScanPeer();
+        });
+    }
+
+    function renderDiscoveredSessions(discovered) {
+        discoveryStatus.classList.add('hidden');
+        sessionList.innerHTML = '';
+        
+        if (discovered.length === 0) {
+            const noSessions = document.createElement('div');
+            noSessions.className = 'no-sessions';
+            noSessions.textContent = "No sessions found on network.";
+            sessionList.appendChild(noSessions);
+            return;
+        }
+        
+        discovered.forEach(session => {
+            const item = document.createElement('div');
+            item.className = 'session-item';
+            
+            const infoDiv = document.createElement('div');
+            infoDiv.className = 'session-info';
+            
+            const nameEl = document.createElement('span');
+            nameEl.textContent = session.name || "Lullabark Session";
+            infoDiv.appendChild(nameEl);
+            
+            if (session.passwordProtected) {
+                const lockSpan = document.createElement('span');
+                lockSpan.className = 'lock-badge';
+                lockSpan.title = "Password Required";
+                lockSpan.innerHTML = `
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="display: block;">
+                        <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
+                    </svg>
+                `;
+                infoDiv.appendChild(lockSpan);
+            }
+            
+            const joinBtn = document.createElement('button');
+            joinBtn.className = 'join-btn';
+            joinBtn.textContent = 'Join';
+            joinBtn.addEventListener('click', () => {
+                handleJoinDiscoverySession(session);
+            });
+            
+            item.appendChild(infoDiv);
+            item.appendChild(joinBtn);
+            sessionList.appendChild(item);
+        });
+    }
+
+    function handleJoinDiscoverySession(session) {
+        if (session.passwordProtected) {
+            selectedSessionToJoin = session;
+            passcodeInput.value = '';
+            passcodePromptModal.classList.remove('hidden');
+            setTimeout(() => passcodeInput.focus(), 100);
+        } else {
+            const code = session.id.replace('lullabark-session-', '');
+            joinSessionWithCode(code, '');
+        }
+    }
+
+    function joinSessionWithCode(code, password = '') {
+        clientBaseTag = code;
+        clientConnectionPassword = password || code;
+        initClientPeer();
+    }
 
     joinSessionBtn.addEventListener('click', () => {
         const tag = sessionTagInput.value.trim().toUpperCase();
         if (!tag) return showToast("Please enter a session code!");
-        clientBaseTag = tag;
-        initClientPeer();
+        joinSessionWithCode(tag, tag);
     });
 
     function initClientPeer() {
@@ -427,7 +693,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (networkRole !== 'client' || !peer) return;
         currentHostId = `lullabark-session-${clientBaseTag}`;
         
-        const conn = peer.connect(currentHostId);
+        const conn = peer.connect(currentHostId, {
+            metadata: { password: clientConnectionPassword }
+        });
         peerConnections = [conn];
         
         let connectionTimeout = setTimeout(() => {
@@ -450,6 +718,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         conn.on('close', () => { 
             clearTimeout(connectionTimeout);
+            if (conn.authFailed) return;
             if (!currentHostId || !peerConnections.includes(conn)) return;
             showToast("Disconnected from host. Reconnecting..."); 
             updateNetworkUI('Reconnecting...', 'Client');
@@ -459,6 +728,63 @@ document.addEventListener('DOMContentLoaded', () => {
         conn.on('error', err => {
             console.error('Connection error:', err);
             clearTimeout(connectionTimeout);
+        });
+    }
+
+    // Modal and Scan Bindings
+    if (refreshDiscoveryBtn) {
+        refreshDiscoveryBtn.addEventListener('click', () => {
+            scanForSessions();
+        });
+    }
+
+    if (toggleManualJoinBtn && manualJoinContainer) {
+        toggleManualJoinBtn.addEventListener('click', () => {
+            if (manualJoinContainer.classList.contains('hidden')) {
+                manualJoinContainer.classList.remove('hidden');
+                toggleManualJoinBtn.textContent = "Hide manual join";
+            } else {
+                manualJoinContainer.classList.add('hidden');
+                toggleManualJoinBtn.textContent = "Or join manually with a code";
+            }
+        });
+    }
+
+    if (closePasscodeBtn && passcodePromptModal) {
+        closePasscodeBtn.addEventListener('click', () => {
+            passcodePromptModal.classList.add('hidden');
+            selectedSessionToJoin = null;
+        });
+    }
+
+    if (submitPasscodeBtn && passcodePromptModal) {
+        submitPasscodeBtn.addEventListener('click', () => {
+            const enteredPasscode = passcodeInput.value.trim().toUpperCase();
+            if (!enteredPasscode) {
+                showToast("Please enter the password!");
+                return;
+            }
+            if (!selectedSessionToJoin) return;
+            
+            const code = selectedSessionToJoin.id.replace('lullabark-session-', '');
+            passcodePromptModal.classList.add('hidden');
+            joinSessionWithCode(code, enteredPasscode);
+        });
+    }
+
+    if (passcodeInput) {
+        passcodeInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                submitPasscodeBtn.click();
+            }
+        });
+    }
+
+    if (sessionTagInput) {
+        sessionTagInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                joinSessionBtn.click();
+            }
         });
     }
 
@@ -476,6 +802,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (peer) { 
             peer.destroy(); 
             peer = null; 
+        }
+        if (discoveryPeer) {
+            try { discoveryPeer.destroy(); } catch(e){}
+            discoveryPeer = null;
         }
         networkRole = 'none';
         updateNetworkUI('Disconnected', 'none');
@@ -509,16 +839,23 @@ document.addEventListener('DOMContentLoaded', () => {
             noiseVolumeInput.value = state.noiseVolume;
             alarmVolumeInput.value = state.alarmVolume;
 
-            if (state.isSleepMode && !isSleepMode) {
+            if (state.isSleepMode) {
                 const [hours, minutes] = state.wakeTime.split(':').map(Number);
                 const now = new Date();
                 targetTime = new Date();
                 targetTime.setHours(hours, minutes, 0, 0);
                 if (targetTime < now) targetTime.setDate(targetTime.getDate() + 1);
-                startSleepMode(true);
+                
+                if (!isSleepMode) {
+                    startSleepMode(true);
+                }
             } else if (!state.isSleepMode && isSleepMode) {
                 resetApp(true);
             }
+        } else if (networkRole === 'client' && data.type === 'AUTH_FAIL') {
+            showToast("Incorrect password. Please try again.");
+            conn.authFailed = true;
+            cleanupNetwork();
         } else if (networkRole === 'host' && data.type === 'CMD') {
             if (data.cmd === 'START') {
                 if (!isSleepMode) startBtn.click();
@@ -526,6 +863,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (isSleepMode) stopBtn.click();
             } else if (data.cmd === 'UPDATE_TIME') {
                 wakeTimeInput.value = data.payload;
+                if (isSleepMode) {
+                    const [hours, minutes] = data.payload.split(':').map(Number);
+                    const now = new Date();
+                    targetTime = new Date();
+                    targetTime.setHours(hours, minutes, 0, 0);
+                    if (targetTime < now) targetTime.setDate(targetTime.getDate() + 1);
+                }
                 broadcastState();
             } else if (data.cmd === 'UPDATE_NOISE_VOL') {
                 noiseVolumeInput.value = data.payload;
@@ -725,14 +1069,43 @@ document.addEventListener('DOMContentLoaded', () => {
             const textSpan = document.createElement('span');
             textSpan.innerText = timeFormatted;
             textSpan.addEventListener('click', () => {
-                wakeTimeInput.value = timeStr;
+                if (isSleepMode) {
+                    wakeTimeInput.value = timeStr;
+                    
+                    const [hours, minutes] = timeStr.split(':').map(Number);
+                    const now = new Date();
+                    targetTime = new Date();
+                    targetTime.setHours(hours, minutes, 0, 0);
+                    if (targetTime < now) targetTime.setDate(targetTime.getDate() + 1);
+                    
+                    if (networkRole === 'client') {
+                        sendCommand('UPDATE_TIME', timeStr);
+                    } else if (networkRole === 'host') {
+                        broadcastState();
+                    }
+                    
+                    syncStateToPanopticon();
+                    
+                    showToast(`Wake time updated to ${timeFormatted}`);
+                } else {
+                    wakeTimeInput.value = timeStr;
+                    if (networkRole === 'client') {
+                        sendCommand('UPDATE_TIME', timeStr);
+                    } else if (networkRole === 'host') {
+                        broadcastState();
+                    }
+                }
             });
             
             const delBtn = document.createElement('button');
             delBtn.className = 'preset-delete';
             delBtn.innerText = '✕';
             delBtn.title = "Delete Preset";
+            if (isSleepMode) {
+                delBtn.disabled = true;
+            }
             delBtn.addEventListener('click', (e) => {
+                if (isSleepMode) return;
                 e.stopPropagation();
                 presets.splice(index, 1);
                 localStorage.setItem('pupSleepPresets', JSON.stringify(presets));
@@ -805,13 +1178,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         isSleepMode = true;
         requestWakeLock();
+        renderPresets(); // Disable preset deletes
         
         // Update UI
         startBtn.classList.add('hidden');
         stopBtn.classList.remove('hidden');
         statusDisplay.classList.remove('hidden');
         document.querySelectorAll('input:not([type=range]), select, button').forEach(el => {
-            if (el.id !== 'stop-btn' && el.id !== 'network-btn' && el.id !== 'close-modal-btn' && el.id !== 'leave-session-btn') el.disabled = true;
+            if (el.id !== 'stop-btn' && el.id !== 'network-btn' && el.id !== 'close-modal-btn' && el.id !== 'leave-session-btn' && !el.classList.contains('preset-btn')) el.disabled = true;
         });
         document.querySelectorAll('.upload-btn').forEach(el => {
             el.classList.add('disabled-label');
@@ -983,6 +1357,7 @@ document.addEventListener('DOMContentLoaded', () => {
         isSleepMode = false;
         releaseWakeLock();
         clearInterval(timerInterval);
+        renderPresets(); // Re-enable preset deletes
         
         // Stop audios
         if (networkRole !== 'client') {
