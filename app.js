@@ -49,6 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let clientConnectionPassword = '';
     let currentHostCode = '';
     let clientBaseTag = '';
+    let networkRetryTimeout = null;
 
     // IndexedDB Setup for Custom Sounds
     const DB_NAME = 'LullabarkDB';
@@ -362,11 +363,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 hostCodeDisplay.classList.add('hidden');
                 hostCodeDisplay.innerHTML = '';
             }
+            leaveSessionBtn.textContent = 'End Session';
         } else if (role === 'Client') {
             sessionSetupView.classList.add('hidden');
             sessionActiveView.classList.remove('hidden');
             modalSubtitle.style.display = 'none';
             hostCodeDisplay.classList.add('hidden');
+            leaveSessionBtn.textContent = 'Disconnect';
         }
     }
 
@@ -609,14 +612,13 @@ document.addEventListener('DOMContentLoaded', () => {
             passcodePromptModal.classList.remove('hidden');
             setTimeout(() => passcodeInput.focus(), 100);
         } else {
-            const code = session.id.replace('lullabark-session-', '');
-            joinSessionWithCode(code, '');
+            joinSessionWithCode(session.id, '');
         }
     }
 
     function joinSessionWithCode(code, password = '') {
         clientBaseTag = code;
-        clientConnectionPassword = password || code;
+        clientConnectionPassword = password;
         initClientPeer();
     }
 
@@ -642,7 +644,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (thisPeer !== peer) return;
             if (err.type === 'peer-unavailable') {
                 showToast("Host not found. Retrying in 5s...");
-                setTimeout(() => { if (thisPeer === peer && networkRole === 'client') initClientPeer(); }, 5000);
+                if (networkRetryTimeout) clearTimeout(networkRetryTimeout);
+                networkRetryTimeout = setTimeout(() => { if (thisPeer === peer && networkRole === 'client') initClientPeer(); }, 5000);
             } else if (err.type === 'network') {
                 showToast("Network Error... reconnecting");
             } else {
@@ -664,9 +667,11 @@ document.addEventListener('DOMContentLoaded', () => {
         let connectionTimeout = setTimeout(() => {
             if (!peerConnections.includes(conn) || networkRole !== 'client') return;
             console.log(`Connection to ${currentHostId} timed out.`);
+            peerConnections = peerConnections.filter(c => c !== conn);
             conn.close();
             showToast("Host not responding. Retrying in 5s...");
-            setTimeout(() => { if (networkRole === 'client') initClientPeer(); }, 5000);
+            if (networkRetryTimeout) clearTimeout(networkRetryTimeout);
+            networkRetryTimeout = setTimeout(() => { if (networkRole === 'client') initClientPeer(); }, 5000);
         }, 5000);
         
         conn.on('open', () => {
@@ -685,7 +690,8 @@ document.addEventListener('DOMContentLoaded', () => {
             showToast("Disconnected from host. Reconnecting..."); 
             updateNetworkUI('Reconnecting...', 'Client');
             
-            setTimeout(connectToHost, 3000);
+            if (networkRetryTimeout) clearTimeout(networkRetryTimeout);
+            networkRetryTimeout = setTimeout(connectToHost, 3000);
         });
         conn.on('error', err => {
             console.error('Connection error:', err);
@@ -718,7 +724,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (!selectedSessionToJoin) return;
             
-            const code = selectedSessionToJoin.id.replace('lullabark-session-', '');
+            const code = selectedSessionToJoin.id;
             passcodePromptModal.classList.add('hidden');
             joinSessionWithCode(code, enteredPasscode);
         });
@@ -752,6 +758,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (discoveryPeer) {
             try { discoveryPeer.destroy(); } catch(e){}
             discoveryPeer = null;
+        }
+        if (networkRetryTimeout) {
+            clearTimeout(networkRetryTimeout);
+            networkRetryTimeout = null;
         }
         networkRole = 'none';
         updateNetworkUI('Disconnected', 'none');
