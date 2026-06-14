@@ -33,6 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let networkRole = 'none';
     let currentHostId = null;
     let wakeLock = null;
+    let isRestoringState = false;
 
     // IndexedDB Setup for Custom Sounds
     const DB_NAME = 'LullabarkDB';
@@ -187,6 +188,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Synchronization function to broadcast state changes to Panopticon parent
     function syncStateToPanopticon() {
+        if (isRestoringState) return;
         if (window.parent === window) return;
 
         const selectedNoiseOption = whiteNoiseSelect.options[whiteNoiseSelect.selectedIndex];
@@ -212,23 +214,28 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('message', (event) => {
         const { type, payload } = event.data || {};
         if (type === 'PANOPTICON_LOAD' && payload) {
-            if (payload.noiseVolume !== undefined) {
-                noiseVolumeInput.value = payload.noiseVolume;
-                localStorage.setItem('noiseVolume', payload.noiseVolume);
-                noiseVolumeInput.dispatchEvent(new Event('input', { bubbles: true }));
-            }
-            if (payload.alarmVolume !== undefined) {
-                alarmVolumeInput.value = payload.alarmVolume;
-                localStorage.setItem('alarmVolume', payload.alarmVolume);
-                alarmVolumeInput.dispatchEvent(new Event('input', { bubbles: true }));
-            }
-            if (payload.selectedNoiseId !== undefined) {
-                localStorage.setItem('selectedNoiseId', payload.selectedNoiseId);
-                restoreSelectedOption(whiteNoiseSelect, payload.selectedNoiseId);
-            }
-            if (payload.selectedAlarmId !== undefined) {
-                localStorage.setItem('selectedAlarmId', payload.selectedAlarmId);
-                restoreSelectedOption(alarmSelect, payload.selectedAlarmId);
+            isRestoringState = true;
+            try {
+                if (payload.noiseVolume !== undefined) {
+                    noiseVolumeInput.value = payload.noiseVolume;
+                    localStorage.setItem('noiseVolume', payload.noiseVolume);
+                    noiseVolumeInput.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+                if (payload.alarmVolume !== undefined) {
+                    alarmVolumeInput.value = payload.alarmVolume;
+                    localStorage.setItem('alarmVolume', payload.alarmVolume);
+                    alarmVolumeInput.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+                if (payload.selectedNoiseId !== undefined) {
+                    localStorage.setItem('selectedNoiseId', payload.selectedNoiseId);
+                    restoreSelectedOption(whiteNoiseSelect, payload.selectedNoiseId);
+                }
+                if (payload.selectedAlarmId !== undefined) {
+                    localStorage.setItem('selectedAlarmId', payload.selectedAlarmId);
+                    restoreSelectedOption(alarmSelect, payload.selectedAlarmId);
+                }
+            } finally {
+                isRestoringState = false;
             }
         }
     });
@@ -1018,10 +1025,8 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (networkRole === 'host') broadcastState();
     });
 
-    // Live volume update
+    // Live volume update (immediate feedback during drag)
     noiseVolumeInput.addEventListener('input', (e) => {
-        localStorage.setItem('noiseVolume', e.target.value);
-        syncStateToPanopticon();
         if (networkRole === 'client') sendCommand('UPDATE_NOISE_VOL', e.target.value);
         else if (networkRole === 'host') broadcastState();
 
@@ -1034,15 +1039,24 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    alarmVolumeInput.addEventListener('input', (e) => {
-        localStorage.setItem('alarmVolume', e.target.value);
+    // Save volume adjustments to storage upon drag release
+    noiseVolumeInput.addEventListener('change', (e) => {
+        localStorage.setItem('noiseVolume', e.target.value);
         syncStateToPanopticon();
+    });
+
+    alarmVolumeInput.addEventListener('input', (e) => {
         if (networkRole === 'client') sendCommand('UPDATE_ALARM_VOL', e.target.value);
         else if (networkRole === 'host') broadcastState();
 
         if (isSleepMode && networkRole !== 'client') {
             alarmAudios.forEach(a => a.volume = e.target.value);
         }
+    });
+
+    alarmVolumeInput.addEventListener('change', (e) => {
+        localStorage.setItem('alarmVolume', e.target.value);
+        syncStateToPanopticon();
     });
 
     // Register Service Worker for PWA
